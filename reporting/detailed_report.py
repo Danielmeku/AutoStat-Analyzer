@@ -5,10 +5,16 @@ from modules.exploratory_analysis import numeric_summary, outlier_summary, corre
 from reporting.executive_report import executive_report
 
 
-def analysis_bundle(frame, dataset_name: str) -> bytes:
+def analysis_bundle(frame, dataset_name: str, analyses=None) -> bytes:
+    from reporting.results import json_result
     output = io.BytesIO()
     with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr("summary.md", executive_report(frame, dataset_name))
+        summary = executive_report(frame, dataset_name)
+        if analyses:
+            summary += "\n\n## Additional analyses\nSee the included JSON results for the last completed test/model and their exact variable selections, exclusions, and limitations.\n"
+        archive.writestr("summary.md", summary)
+        for key, result in (analyses or {}).items():
+            archive.writestr(f"{key}.json", json_result(result))
         archive.writestr("column_profile.csv", profile_data(frame).to_csv(index=False))
         archive.writestr("numeric_summary.csv", numeric_summary(frame).to_csv())
         archive.writestr("iqr_flags.csv", outlier_summary(frame).to_csv(index=False))

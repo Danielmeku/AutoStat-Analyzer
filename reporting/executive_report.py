@@ -8,7 +8,7 @@ def executive_report(frame, dataset_name: str) -> str:
     # JSON quoting keeps user-supplied names distinct from report formatting.
     lines = ["# AutoStat Analyzer — Exploratory summary", "", f"Dataset: {json.dumps(dataset_name)}", ""]
     lines.extend(f"- {line}" for line in quality_insights(quality))
-    lines += ["", "## Scope", "Descriptive exploration only. No hypothesis tests or predictive models were run.",
+    lines += ["", "## Scope", "This summary covers descriptive exploration only. Completed tests and models, if any, are exported separately as JSON in the analysis bundle.",
               "Missing numeric values are excluded per column; correlations use pairwise complete observations (minimum 3).",
               "This report describes the active dataset, including any explicitly applied cleaning."]
     return "\n".join(lines)

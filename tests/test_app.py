@@ -23,3 +23,19 @@ def test_demo_clean_reset_and_categorical_flow():
     next(r for r in app.radio if r.label == 'Dataset source').set_value('Upload CSV').run()
     assert not app.exception
     assert any('Choose a CSV' in item.value for item in app.info)
+
+
+def test_run_statistical_analysis_and_invalidate_after_cleaning():
+    app = AppTest.from_file(Path(__file__).resolve().parents[1] / 'app.py', default_timeout=30).run()
+    next(r for r in app.selectbox if r.label == 'Test').set_value('Correlation test').run()
+    next(b for b in app.button if b.label == 'Run test').click().run()
+    assert not app.exception
+    assert app.session_state['test_result']['observations'] > 0
+    next(b for b in app.button if b.label == 'Fit regression').click().run()
+    assert not app.exception
+    assert app.session_state['regression_result']['observations'] > 0
+    app.checkbox[0].check()
+    next(b for b in app.button if b.label == 'Apply cleaning').click().run()
+    assert not app.exception
+    assert 'test_result' not in app.session_state
+    assert 'regression_result' not in app.session_state
