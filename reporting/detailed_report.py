@@ -5,10 +5,13 @@ from modules.exploratory_analysis import numeric_summary, outlier_summary, corre
 from reporting.executive_report import executive_report
 
 
-def analysis_bundle(frame, dataset_name: str, analyses=None) -> bytes:
+def analysis_bundle(frame, dataset_name: str, analyses=None, pdfs=None) -> bytes:
     from reporting.results import json_result
     output = io.BytesIO()
     with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as archive:
+        for filename in ("executive.pdf", "detailed.pdf"):
+            if filename in (pdfs or {}):
+                archive.writestr(filename, pdfs[filename])
         summary = executive_report(frame, dataset_name)
         if analyses:
             summary += "\n\n## Additional analyses\nSee the included JSON results for the last completed test/model and their exact variable selections, exclusions, and limitations.\n"

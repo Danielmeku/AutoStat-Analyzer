@@ -11,12 +11,14 @@ from modules.exploratory_analysis import numeric_summary, correlation_matrix, ou
 from ai.insight_teller import quality_insights
 from reporting.executive_report import executive_report
 from reporting.detailed_report import analysis_bundle
+from reporting.pdf_generator import executive_pdf, detailed_pdf
+from reporting.results import json_result
 from ui.statistical_analysis import render_tests, render_regression, render_comparison
 from reporting.formatting import display_table, format_number
 
 st.set_page_config(page_title="AutoStat Analyzer", page_icon="📊", layout="wide")
 st.title("AutoStat Analyzer")
-st.caption("STATISTICAL WORKSPACE · v0.3")
+st.caption("STATISTICAL WORKSPACE · v0.4")
 st.write("Understand your data before you model it. Upload, review, explore, and export your findings.")
 with st.sidebar:
     st.header("Your workspace")
@@ -140,12 +142,30 @@ with insights:
     for finding in quality_insights(quality, digits):
         st.info(finding)
     st.markdown("#### Next development milestones")
-    st.write("PDF reports, broader statistical tests, classification, and an optional AI assistant are planned. This release includes hypothesis tests, OLS diagnostics, and held-out regression model comparison.")
+    st.write("Broader statistical tests, classification, and an optional AI assistant are planned. This release includes hypothesis tests, OLS diagnostics, held-out regression model comparison, and PDF reports.")
 
 with export:
     st.subheader("Take your analysis with you")
-    st.write("Export the active working copy and reproducible descriptive results. The ZIP contains a Markdown summary, profiles, descriptive statistics, IQR flags, Pearson correlations, and any completed statistical test regression, or model comparison result as JSON.")
-    st.download_button("Download analysis bundle", analysis_bundle(frame, name, {key: st.session_state[key] for key in ["test_result", "regression_result", "comparison_result"] if key in st.session_state}), "autostat-analysis.zip", "application/zip")
+    st.write("Export your working copy and computed results. Generate PDFs to add a one-page executive summary and a detailed statistical report to your downloads and ZIP.")
+    analyses = {key: st.session_state[key] for key in ["test_result", "regression_result", "comparison_result"] if key in st.session_state}
+    report_signature = hashlib.sha256((analysis_fingerprint + name + st.session_state["preparation"] + str(digits) + json_result(analyses)).encode()).hexdigest()
+    if st.session_state.get("pdf_signature") != report_signature:
+        st.session_state.pop("pdf_reports", None)
+        st.session_state.pop("pdf_signature", None)
+    if st.button("Generate PDF reports", type="primary"):
+        with st.spinner("Preparing reports from calculated results…"):
+            pdfs = {
+                "executive.pdf": executive_pdf(frame, name, analyses, digits, st.session_state["preparation"]),
+                "detailed.pdf": detailed_pdf(frame, name, analyses, digits, st.session_state["preparation"]),
+            }
+        st.session_state["pdf_reports"] = pdfs
+        st.session_state["pdf_signature"] = report_signature
+    pdfs = st.session_state.get("pdf_reports", {})
+    if pdfs:
+        st.download_button("Download executive PDF", pdfs["executive.pdf"], "autostat-executive.pdf", "application/pdf")
+        st.download_button("Download detailed PDF", pdfs["detailed.pdf"], "autostat-detailed.pdf", "application/pdf")
+        st.caption("PDFs use your selected display precision and last completed analyses. Reports reset after data, completed analyses, or precision changes. Long labels may be shortened; original labels remain in machine exports.")
+    st.download_button("Download analysis bundle", analysis_bundle(frame, name, analyses, pdfs), "autostat-analysis.zip", "application/zip")
     st.download_button("Download summary", executive_report(frame, name), "autostat-summary.md", "text/markdown")
     st.download_button("Download active dataset", frame.to_csv(index=False).encode("utf-8"), "autostat-working-copy.csv", "text/csv")
     st.caption("Exports contain dataset information. Store and share them according to your data's sensitivity. CSV text is preserved; use care when opening untrusted data in spreadsheet software.")

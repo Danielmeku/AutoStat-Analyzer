@@ -55,3 +55,21 @@ def test_precision_comparison_and_invalidation():
     next(b for b in app.button if b.label == 'Apply cleaning').click().run()
     assert not app.exception
     assert 'comparison_result' not in app.session_state
+
+
+def test_pdf_generation_and_invalidation_on_precision_and_data():
+    app = AppTest.from_file(Path(__file__).resolve().parents[1] / 'app.py', default_timeout=30).run()
+    next(b for b in app.button if b.label == 'Generate PDF reports').click().run()
+    assert not app.exception
+    assert app.session_state['pdf_reports']['executive.pdf'].startswith(b'%PDF-')
+    next(s for s in app.selectbox if s.label == 'Significant figures').set_value(2).run()
+    assert 'pdf_reports' not in app.session_state
+    next(b for b in app.button if b.label == 'Generate PDF reports').click().run()
+    next(b for b in app.button if b.label == 'Fit regression').click().run()
+    assert not app.exception
+    assert 'pdf_reports' not in app.session_state
+    next(b for b in app.button if b.label == 'Generate PDF reports').click().run()
+    app.checkbox[0].check()
+    next(b for b in app.button if b.label == 'Apply cleaning').click().run()
+    assert not app.exception
+    assert 'pdf_reports' not in app.session_state

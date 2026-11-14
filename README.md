@@ -1,6 +1,6 @@
 # AutoStat Analyzer
 
-A working **v0.3 statistical analysis MVP** based on the development blueprint. Built with Python, Streamlit, pandas, Plotly, SciPy, Statsmodels, and scikit-learn. No API key is needed.
+A working **v0.4 statistical analysis MVP** based on the development blueprint. Built with Python, Streamlit, pandas, Plotly, SciPy, Statsmodels, scikit-learn, and ReportLab. No API key is needed.
 
 ## Run
 
@@ -27,7 +27,8 @@ Open the Streamlit address printed by the terminal. In GitHub Codespaces, use th
 8. Download the result JSON, or the analysis bundle containing your last completed test and model. Results are cleared when the active data changes; changing variable selections alone requires running/fitting again.
 9. In **Model comparison**, choose numeric predictors and a target, then press **Compare models** to compare a mean baseline, linear regression and random forest on the same 20% or 30% holdout.
 10. Select **2 or 3 significant figures** in the sidebar. Small values use scientific notation (for example `5e-22` = 5 × 10⁻²²). This changes presentation only; integer counts and full-precision machine exports are preserved. P-values that underflow to zero are labelled “Below numerical precision”, rather than claiming an exact zero.
-11. Upload your own UTF-8 CSV using comma, semicolon, or tab separation.
+11. In **Export**, press **Generate PDF reports** to download a one-page executive PDF and a detailed PDF. Generate them after running the analyses you want included. The ZIP then includes both PDFs alongside the full-precision results.
+12. Upload your own UTF-8 CSV using comma, semicolon, or tab separation.
 
 Uploads are limited to 10 MB, 100,000 observations and 200 columns. Headers must be unique and nonempty; malformed rows and numeric infinity are rejected. No implicit numeric conversion, imputation, encoding, or row deletion is performed. Suggested column roles do not alter data types. Numeric binary columns remain available for descriptive numeric exploration.
 
@@ -35,7 +36,7 @@ Uploads are limited to 10 MB, 100,000 observations and 200 columns. Headers must
 
 Summaries use all available rows; charts reproducibly sample at most 5,000 rows. Standard deviation and variance use sample definitions. Correlations use pairwise complete rows with at least three pairs; constant columns return undefined correlations. Different pairs can use different observations. IQR flags identify candidates for review, not errors. Associations are descriptive and do not establish causation.
 
-This release implements foundation, data review/preparation, EDA, statistical tests, OLS regression with diagnostics, held-out regression model comparison, deterministic quality insights, and analysis exports. **Not yet implemented:** ANOVA, paired/nonparametric tests, logistic regression, classification, clustering, cross-validation/tuning, conversational AI, and PDF reporting.
+This release implements foundation, data review/preparation, EDA, statistical tests, OLS regression with diagnostics, held-out regression model comparison, deterministic quality insights, executive/detailed PDF reports, and analysis exports. **Not yet implemented:** ANOVA, paired/nonparametric tests, logistic regression, classification, clustering, cross-validation/tuning, and conversational AI.
 
 ### Tests and models
 
@@ -52,6 +53,12 @@ The model comparison uses one shared random train/test split (seed 42), with a c
 
 A single holdout supports exploratory comparison; choosing models from it makes it a validation set, not independent final confirmation. No confidence interval or cross-validation score is claimed. Independent observations are required; time series and repeated subjects need other split strategies. Duplicates are counted and flagged because they may leak across partitions; they are not silently removed. The original working copy is preserved. Results retain exact target/features, split size, seed and missing-value handling in JSON and the ZIP bundle. Changing active data clears all analyses; changing only display precision keeps them.
 
+### PDF reports
+
+PDFs are generated on demand in server-session memory, without network calls or disk writes. The executive report is a bounded one-page overview of dataset quality, two compact charts where possible, completed analysis highlights, and interpretation limits. The detailed PDF includes column profiles, descriptive statistics, IQR flags, and only the tests, inferential OLS, and predictive comparisons actually run. Result fields record variables, exclusions, confidence intervals, diagnostics and model scope; no unperformed analyses or AI-generated findings are inserted.
+
+Both use your selected 2 or 3 significant figures, including scientific p-values. Fonts are embedded for consistent rendering. Long labels may be shortened and chart labels show histogram bin starts; full labels/results remain in JSON and CSV. PDFs contain aggregate results, not raw observation rows. Generated reports are cleared when active data, completed analyses, dataset identity, preparation description, or display precision changes. Changing analysis selections without running them leaves reports describing the last completed analysis, consistent with the displayed results.
+
 ## Privacy
 
 Uploaded data stays in the Streamlit server session's memory; the application does not persist it to disk or send it to AI services. Downloads may contain sensitive information. Resetting the working copy restores the original data; remove the uploaded file from its picker or close the session to release it. Infrastructure may have its own retention behavior. For sensitive datasets, use trusted/private hosting. Never commit datasets or API keys. CSV exports preserve user text; treat untrusted CSVs carefully in spreadsheet applications.
@@ -62,14 +69,14 @@ Uploaded data stays in the Streamlit server session's memory; the application do
 python -m pytest -q
 ```
 
-Tests cover CSV ingestion/rejection, mixed-type profiling, known statistical results, non-destructive cleaning, export contents, statistical reference values, regression recovery and degeneracy checks, analysis export contents, train-only imputation, reproducible holdout predictions, significant-figure formatting, and Streamlit test/model/comparison/clean/reset journeys. GitHub Actions runs the suite on Python 3.12.
+Tests cover CSV ingestion/rejection, mixed-type profiling, known statistical results, non-destructive cleaning, export contents, statistical reference values, regression recovery and degeneracy checks, analysis export contents, train-only imputation, reproducible holdout predictions, significant-figure formatting, PDF parsing/content, embedded fonts, one-page executive layout and detailed pagination, report invalidation, and Streamlit test/model/comparison/clean/reset journeys. GitHub Actions runs the suite on Python 3.12.
 
 ## Architecture and next steps
 
 - `modules/`: ingestion, validation, preparation, profiling, and descriptive calculations.
 - `ai/insight_teller.py`: transparent rules using computed results. No language model is connected.
-- `reporting/`: Markdown summary and ZIP exports.
+- `reporting/`: number formatting, Markdown/JSON/CSV bundles, and in-memory executive/detailed PDFs.
 - `ui/`: statistical analysis controls and result displays.
 - `app.py`: UI orchestration and per-session working copy.
 
-Next: PDF reports; broader tests and classification; cross-validation; then a provider-independent AI assistant receiving only explicitly approved aggregate results. Gemini credentials are unnecessary for this milestone and should later be supplied through environment variables or Streamlit secrets, never source code.
+Next: broader tests and classification; cross-validation; then a provider-independent AI assistant receiving only explicitly approved aggregate results. Gemini credentials are unnecessary for this milestone and should later be supplied through environment variables or Streamlit secrets, never source code.
