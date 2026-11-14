@@ -1,6 +1,6 @@
 # AutoStat Analyzer
 
-A working **v0.4 statistical analysis MVP** based on the development blueprint. Built with Python, Streamlit, pandas, Plotly, SciPy, Statsmodels, scikit-learn, and ReportLab. No API key is needed.
+A working **v0.5 statistical analysis MVP** based on the development blueprint. Built with Python, Streamlit, pandas, Plotly, SciPy, Statsmodels, scikit-learn, and ReportLab. No API key is needed.
 
 ## Run
 
@@ -28,7 +28,8 @@ Open the Streamlit address printed by the terminal. In GitHub Codespaces, use th
 9. In **Model comparison**, choose numeric predictors and a target, then press **Compare models** to compare a mean baseline, linear regression and random forest on the same 20% or 30% holdout.
 10. Select **2 or 3 significant figures** in the sidebar. Small values use scientific notation (for example `5e-22` = 5 × 10⁻²²). This changes presentation only; integer counts and full-precision machine exports are preserved. P-values that underflow to zero are labelled “Below numerical precision”, rather than claiming an exact zero.
 11. In **Export**, press **Generate PDF reports** to download a one-page executive PDF and a detailed PDF. Generate them after running the analyses you want included. The ZIP then includes both PDFs alongside the full-precision results.
-12. Upload your own UTF-8 CSV using comma, semicolon, or tab separation.
+12. In **Classification**, select a categorical or discrete numeric target and numeric features, then press **Compare classifiers**. Inspect accuracy, balanced accuracy, macro-F1, the confusion matrix and each class’s precision/recall/F1. Results are included in JSON, ZIP and generated PDFs.
+13. Upload your own UTF-8 CSV using comma, semicolon, or tab separation.
 
 Uploads are limited to 10 MB, 100,000 observations and 200 columns. Headers must be unique and nonempty; malformed rows and numeric infinity are rejected. No implicit numeric conversion, imputation, encoding, or row deletion is performed. Suggested column roles do not alter data types. Numeric binary columns remain available for descriptive numeric exploration.
 
@@ -36,7 +37,7 @@ Uploads are limited to 10 MB, 100,000 observations and 200 columns. Headers must
 
 Summaries use all available rows; charts reproducibly sample at most 5,000 rows. Standard deviation and variance use sample definitions. Correlations use pairwise complete rows with at least three pairs; constant columns return undefined correlations. Different pairs can use different observations. IQR flags identify candidates for review, not errors. Associations are descriptive and do not establish causation.
 
-This release implements foundation, data review/preparation, EDA, statistical tests, OLS regression with diagnostics, held-out regression model comparison, deterministic quality insights, executive/detailed PDF reports, and analysis exports. **Not yet implemented:** ANOVA, paired/nonparametric tests, logistic regression, classification, clustering, cross-validation/tuning, and conversational AI.
+This release implements foundation, data review/preparation, EDA, statistical tests, OLS regression with diagnostics, held-out regression and classification model comparison, deterministic quality insights, executive/detailed PDF reports, and analysis exports. **Not yet implemented:** ANOVA, paired/nonparametric tests, inferential logistic regression, categorical feature encoding, clustering, cross-validation/tuning, and conversational AI.
 
 ### Tests and models
 
@@ -53,9 +54,19 @@ The model comparison uses one shared random train/test split (seed 42), with a c
 
 A single holdout supports exploratory comparison; choosing models from it makes it a validation set, not independent final confirmation. No confidence interval or cross-validation score is claimed. Independent observations are required; time series and repeated subjects need other split strategies. Duplicates are counted and flagged because they may leak across partitions; they are not silently removed. The original working copy is preserved. Results retain exact target/features, split size, seed and missing-value handling in JSON and the ZIP bundle. Changing active data clears all analyses; changing only display precision keeps them.
 
+### Classification
+
+Classification supports categorical or explicitly selected discrete numeric targets with 2–10 classes, at least 30 observed targets overall, and at least 5 observations per class. Numeric values are treated as class labels, not continuous outcomes. Features must be 1–20 numeric columns, excluding the target; categorical feature encoding is future work. Missing targets are excluded and counted. A 20% or 30% stratified random holdout (seed 42) is shared by all classifiers. Predictor medians and logistic regression standardization are fitted only on training rows; entirely missing training features are rejected. Original data is preserved.
+
+The baseline predicts the most frequent training class. Logistic regression uses L2 regularization, balanced class weights and a 1,000-iteration limit; nonconvergence produces an actionable error rather than a completed comparison. Random forest uses 100 trees, maximum depth 12, minimum leaf size 2, balanced class weights and two workers. Labels use internal integer codes and are displayed/exported in the explicit lexicographically sorted text class order, preserving original label text. No tuning, threshold optimization, probability calibration or coefficient inference is performed.
+
+All scores are holdout scores. Accuracy is the fraction correct; balanced accuracy is average recall over classes; macro-F1 weights class F1 scores equally. Precision, recall or F1 that would be undefined are displayed as zero. Confusion matrix rows are actual classes and columns are predictions. Per-class support counts refer to holdout rows. Class distributions show both training and holdout support. Imbalance can conceal poor minority-class recall, so inspect all metrics rather than accuracy alone. A single holdout is exploratory after model selection; independent confirmation requires another test set or an appropriate validation design. Independent observations are required; time series and repeated subjects need different split strategies. Duplicate model rows are counted and flagged as a potential leakage source.
+
+Classification results retain their target/features, split, class order/distributions, preprocessing, settings and limitations. JSON/ZIP and generated PDFs include the last completed classification. Data changes invalidate results and PDFs; display precision changes preserve computed classification results but require regenerating PDFs. Changing selections alone does not recompute results.
+
 ### PDF reports
 
-PDFs are generated on demand in server-session memory, without network calls or disk writes. The executive report is a bounded one-page overview of dataset quality, two compact charts where possible, completed analysis highlights, and interpretation limits. The detailed PDF includes column profiles, descriptive statistics, IQR flags, and only the tests, inferential OLS, and predictive comparisons actually run. Result fields record variables, exclusions, confidence intervals, diagnostics and model scope; no unperformed analyses or AI-generated findings are inserted.
+PDFs are generated on demand in server-session memory, without network calls or disk writes. The executive report is a bounded one-page overview of dataset quality, two compact charts where possible, completed analysis highlights, and interpretation limits. The detailed PDF includes column profiles, descriptive statistics, IQR flags, and only the tests, inferential OLS, and predictive regression/classification comparisons actually run. Classification reports include class distributions, metric tables, labelled confusion counts and per-class scores. Result fields record variables, exclusions, confidence intervals, diagnostics and model scope; no unperformed analyses or AI-generated findings are inserted.
 
 Both use your selected 2 or 3 significant figures, including scientific p-values. Fonts are embedded for consistent rendering. Long labels may be shortened and chart labels show histogram bin starts; full labels/results remain in JSON and CSV. PDFs contain aggregate results, not raw observation rows. Generated reports are cleared when active data, completed analyses, dataset identity, preparation description, or display precision changes. Changing analysis selections without running them leaves reports describing the last completed analysis, consistent with the displayed results.
 
@@ -69,7 +80,7 @@ Uploaded data stays in the Streamlit server session's memory; the application do
 python -m pytest -q
 ```
 
-Tests cover CSV ingestion/rejection, mixed-type profiling, known statistical results, non-destructive cleaning, export contents, statistical reference values, regression recovery and degeneracy checks, analysis export contents, train-only imputation, reproducible holdout predictions, significant-figure formatting, PDF parsing/content, embedded fonts, one-page executive layout and detailed pagination, report invalidation, and Streamlit test/model/comparison/clean/reset journeys. GitHub Actions runs the suite on Python 3.12.
+Tests cover CSV ingestion/rejection, mixed-type profiling, known statistical results, non-destructive cleaning, export contents, statistical reference values, regression recovery and degeneracy checks, analysis export contents, train-only imputation, reproducible holdout predictions, significant-figure formatting, PDF parsing/content, embedded fonts, one-page executive layout and detailed pagination, report invalidation, stratified classification/reference metrics and train-only scaling, numeric/multiclass labels, and Streamlit test/model/comparison/clean/reset journeys. GitHub Actions runs the suite on Python 3.12.
 
 ## Architecture and next steps
 
@@ -79,4 +90,4 @@ Tests cover CSV ingestion/rejection, mixed-type profiling, known statistical res
 - `ui/`: statistical analysis controls and result displays.
 - `app.py`: UI orchestration and per-session working copy.
 
-Next: broader tests and classification; cross-validation; then a provider-independent AI assistant receiving only explicitly approved aggregate results. Gemini credentials are unnecessary for this milestone and should later be supplied through environment variables or Streamlit secrets, never source code.
+Next: broader tests; cross-validation and categorical predictors; then a provider-independent AI assistant receiving only explicitly approved aggregate results. Gemini credentials are unnecessary for this milestone and should later be supplied through environment variables or Streamlit secrets, never source code.

@@ -67,3 +67,25 @@ def test_reports_handle_categorical_empty_long_labels_and_pagination():
         assert 'Data quality' in text
         if len(frame.columns) == 50:
             assert len(document.pages) > 1
+
+
+def test_classification_in_all_analysis_pdfs_and_ten_class_tables():
+    from modules.classification import compare_classifiers
+    frame = demo_data()
+    regression, _ = fit_regression(frame, 'sales', ['marketing_spend'])
+    comparison, _ = compare_regressors(frame, 'sales', ['marketing_spend'])
+    classification = compare_classifiers(frame, 'region', ['marketing_spend'])
+    analyses = {'test_result': correlation_test(frame, 'marketing_spend', 'sales'),
+                'regression_result': regression, 'comparison_result': comparison,
+                'classification_result': classification}
+    document, text = _read(executive_pdf(frame, 'Synthetic sales', analyses))
+    assert len(document.pages) == 1
+    assert 'macro-F1' in text
+    _, text = _read(detailed_pdf(frame, 'Synthetic sales', analyses))
+    assert 'Classification model comparison (stratified holdout)' in ' '.join(text.split())
+    assert 'Confusion matrices' in text
+    assert 'Majority baseline' in text
+    frame = pd.DataFrame({'x': np.arange(100), 'target': np.tile(np.arange(10), 10)})
+    result = compare_classifiers(frame, 'target', ['x'])
+    _, text = _read(detailed_pdf(frame, 'Ten classes', {'classification_result': result}))
+    assert 'C10' in text

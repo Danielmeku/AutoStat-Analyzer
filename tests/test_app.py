@@ -73,3 +73,22 @@ def test_pdf_generation_and_invalidation_on_precision_and_data():
     next(b for b in app.button if b.label == 'Apply cleaning').click().run()
     assert not app.exception
     assert 'pdf_reports' not in app.session_state
+
+
+def test_classification_flow_and_report_invalidation():
+    app = AppTest.from_file(Path(__file__).resolve().parents[1] / 'app.py', default_timeout=30).run()
+    next(b for b in app.button if b.label == 'Generate PDF reports').click().run()
+    next(b for b in app.button if b.label == 'Compare classifiers').click().run()
+    assert not app.exception
+    result = app.session_state['classification_result']
+    assert len(result['models']) == 3
+    assert result['train_rows'] + result['test_rows'] == 181
+    assert 'pdf_reports' not in app.session_state
+    next(s for s in app.selectbox if s.label == 'Significant figures').set_value(2).run()
+    assert app.session_state['classification_result'] == result
+    next(b for b in app.button if b.label == 'Generate PDF reports').click().run()
+    assert not app.exception
+    app.checkbox[0].check()
+    next(b for b in app.button if b.label == 'Apply cleaning').click().run()
+    assert 'classification_result' not in app.session_state
+    assert 'pdf_reports' not in app.session_state

@@ -111,6 +111,9 @@ def _analysis_summary(analyses, digits):
     if comparison := analyses.get("comparison_result"):
         best = min(comparison["models"], key=lambda m: m["rmse"])
         lines.append(f"Holdout comparison target {comparison['target']}: lowest observed RMSE = {format_number(best['rmse'], digits)} ({best['model']}); holdout n = {comparison['test_rows']}. One random split, not independent confirmation after selection.")
+    if classification := analyses.get("classification_result"):
+        best = max(classification["models"], key=lambda m: m["macro_f1"])
+        lines.append(f"Classification target {classification['target']}: highest observed macro-F1 = {format_number(best['macro_f1'], digits)} ({best['model']}); stratified holdout n = {classification['test_rows']}. Review minority-class recall; one split only.")
     return lines or ["No hypothesis test, OLS model, or predictive comparison was completed. This report describes exploratory results only."]
 
 
@@ -132,7 +135,7 @@ def _build(story, title):
 
 
 def executive_pdf(frame, dataset_name, analyses=None, digits=3, preparation="Original data"):
-    """A deliberately bounded one-page overview with at most three analysis summaries."""
+    """A deliberately bounded one-page overview with at most four analysis summaries."""
     quality = validate_data(frame)
     story = [_paragraph("AutoStat Analyzer", "ReportTitle"), _paragraph("Executive statistical summary", "Heading2"),
              _paragraph(f"Dataset: {dataset_name}", limit=90), _paragraph(f"Preparation: {preparation}", limit=120),
@@ -179,6 +182,20 @@ def detailed_pdf(frame, dataset_name, analyses=None, digits=3, preparation="Orig
         if result := (analyses or {}).get(key):
             story.append(_paragraph(title, "Heading1"))
             story.extend(_result_details(result, digits))
+    if classification := (analyses or {}).get("classification_result"):
+        story.append(_paragraph("Classification model comparison (stratified holdout)", "Heading1"))
+        story.extend(_result_details({k: v for k, v in classification.items() if k != "evaluation"}, digits))
+        story.append(_paragraph("Confusion matrices: rows are actual classes; columns are predictions. C1, C2, etc. refer to the class order below."))
+        for i, label in enumerate(classification["classes"]):
+            story.append(_paragraph(f"C{i+1}: {label}"))
+        for model_name, details in classification["evaluation"].items():
+            story.append(_paragraph(model_name, "Heading2"))
+            labels = [f"C{i+1}" for i in range(len(classification["classes"]))]
+            matrix = pd.DataFrame(details["confusion_matrix"], columns=labels)
+            matrix.insert(0, "Actual", labels)
+            story.extend([_table(matrix, digits), Spacer(1, 8),
+                          _paragraph("Per-class holdout metrics", "Heading3"),
+                          _table(pd.DataFrame(details["per_class"]), digits)])
     if not analyses:
         story.append(_paragraph("No statistical test, OLS model or predictive comparison was completed."))
     story.extend([_paragraph("Interpretation and limitations", "Heading2"),
