@@ -5,9 +5,19 @@ import streamlit as st
 from modules.hypothesis_testing import welch_test, correlation_test, chi_square_test
 from modules.regression import fit_regression
 from reporting.results import json_result
+from reporting.formatting import format_number, display_result, display_table
+from modules.machine_learning import compare_regressors
+
+
+def _scatter(*args, **kwargs):
+    figure = px.scatter(*args, **kwargs)
+    digits = st.session_state.get("significant_figures", 3)
+    figure.update_traces(hovertemplate=f"x: %{{x:.{digits}g}}<br>y: %{{y:.{digits}g}}<extra></extra>")
+    return figure
 
 
 def render_tests(frame):
+    digits = st.session_state.get("significant_figures", 3)
     st.subheader("Statistical tests")
     st.caption("Choose a test based on your study design. These are two-sided, unadjusted tests; repeated testing increases false positives. Missing observations are excluded only for selected variables.")
     numbers = list(frame.select_dtypes(include="number"))
@@ -52,16 +62,17 @@ def render_tests(frame):
         st.markdown("#### Last completed test")
         st.caption("Results reflect the last Run test action; changing selections requires running again.")
         st.write(result["method"])
-        st.write(f"{result['conclusion']} at α = {result['alpha']}. This does not prove either hypothesis.")
-        st.write(f"Statistic: {result['statistic']:.5g} · p-value: {result['pvalue']:.5g} · observations: {result['observations']} · excluded rows: {result['excluded_rows']}")
+        st.write(f"{result['conclusion']} at α = {format_number(result['alpha'], digits)}. This does not prove either hypothesis.")
+        st.write(f"Statistic: {format_number(result['statistic'], digits)} · p-value: {format_number(result['pvalue'], digits, pvalue=True)} · observations: {result['observations']} · excluded rows: {result['excluded_rows']}")
         st.info(result["assumptions"])
         if result.get("sparse_cells", 0):
             st.warning("Some expected cell counts are below 5. The chi-square p-value may be unreliable.")
-        st.json(result)
+        st.json(display_result(result, digits))
         st.download_button("Download test result", json_result(result), "autostat-test.json", "application/json")
 
 
 def render_regression(frame):
+    digits = st.session_state.get("significant_figures", 3)
     st.subheader("Linear regression laboratory")
     st.caption("Fit numeric outcomes using ordinary least squares. Coefficients describe associations holding the other selected predictors fixed.")
     numbers = list(frame.select_dtypes(include="number"))
@@ -85,16 +96,57 @@ def render_regression(frame):
         st.caption("Changing selections requires fitting again. Intervals below have 95% confidence.")
         st.write(f"Target: {result['target']} · Predictors: {', '.join(result['predictors'])}")
         left, middle, right = st.columns(3)
-        left.metric("In-sample R²", f"{result['r_squared']:.3f}")
-        middle.metric("In-sample RMSE", f"{result['metrics']['rmse']:.3f}")
+        left.metric("In-sample R²", format_number(result['r_squared'], digits))
+        middle.metric("In-sample RMSE", format_number(result['metrics']['rmse'], digits))
         right.metric("Complete observations", result["observations"])
         st.write(f"Excluded incomplete rows: {result['excluded_rows']}")
-        st.dataframe(pd.DataFrame(result["coefficients"]), hide_index=True, width="stretch")
+        st.dataframe(display_table(pd.DataFrame(result["coefficients"]), digits), hide_index=True, width="stretch")
         st.info(result["scope"])
-        st.json(result["diagnostics"])
+        st.json(display_result(result["diagnostics"], digits))
         if result["condition_number"] > 1000:
             st.warning("The design matrix has a high condition number. Review scaling and possible multicollinearity.")
         plots = st.session_state["regression_plots"].sample(min(5000, result["observations"]), random_state=42)
-        st.plotly_chart(px.scatter(plots, x="Fitted", y="Residual", title="Residuals vs fitted (up to 5,000 rows)"), width="stretch")
-        st.plotly_chart(px.scatter(plots, x="Observed", y="Fitted", title="Observed vs fitted (in-sample)"), width="stretch")
+        st.plotly_chart(_scatter(plots, x="Fitted", y="Residual", title="Residuals vs fitted (up to 5,000 rows)"), width="stretch")
+        st.plotly_chart(_scatter(plots, x="Observed", y="Fitted", title="Observed vs fitted (in-sample)"), width="stretch")
         st.download_button("Download regression result", json_result(result), "autostat-regression.json", "application/json")
+
+
+def render_comparison(frame):
+    digits = st.session_state.get("significant_figures", 3)
+    st.subheader("Predictive model comparison")
+    st.write("Compare a training-mean baseline, linear regression, and a random forest on the same unseen rows.")
+    st.caption("Use independent observations. For time series or repeated subjects, a different splitting strategy is needed.")
+    numbers = list(frame.select_dtypes(include="number"))
+    if len(numbers) < 2:
+        st.info("Need at least two numeric columns for predictive evaluation.")
+        return
+    target = st.selectbox("Prediction target", numbers, index=1)
+    choices = [c for c in numbers if c != target]
+    predictors = st.multiselect("Prediction features", choices, default=choices[:1])
+    fraction = st.selectbox("Holdout fraction", [0.2, 0.3], format_func=lambda v: f"{v:.0%}")
+    st.caption("Fixed seed: 42. Missing targets are excluded. Feature medians are fitted on training rows only; your working copy is preserved.")
+    if st.button("Compare models", type="primary"):
+        for key in ["comparison_result", "comparison_predictions"]:
+            st.session_state.pop(key, None)
+        try:
+            with st.spinner("Training and evaluating models…"):
+                result, predictions = compare_regressors(frame, target, predictors, fraction)
+            st.session_state["comparison_result"] = result
+            st.session_state["comparison_predictions"] = predictions
+        except (ValueError, KeyError) as exc:
+            st.error(str(exc))
+    if result := st.session_state.get("comparison_result"):
+        st.markdown("#### Last completed comparison")
+        st.caption("Changing selections requires comparing again. These models are separate from the full-sample inferential OLS fit.")
+        st.write(f"Target: {result['target']} · Features: {', '.join(result['predictors'])}")
+        st.write(f"Training rows: {result['train_rows']} · Holdout rows: {result['test_rows']} · Excluded missing targets: {result['excluded_target_rows']}")
+        st.dataframe(display_table(pd.DataFrame(result["models"]), digits), hide_index=True, width="stretch")
+        st.info(result["scope"])
+        if result["duplicate_rows"]:
+            st.warning(f"Found {result['duplicate_rows']} duplicate model rows. Repeated records may leak information across the random split; review whether deduplication is appropriate.")
+        predictions = st.session_state["comparison_predictions"]
+        model = st.selectbox("Inspect holdout predictions", [entry["model"] for entry in result["models"]])
+        chart = predictions.sample(min(5000, len(predictions)), random_state=42)
+        st.plotly_chart(_scatter(chart, x="Observed", y=model, title=f"Holdout observations vs predictions · {model}"), width="stretch")
+        st.json(display_result(result, digits))
+        st.download_button("Download comparison result", json_result(result), "autostat-comparison.json", "application/json")
