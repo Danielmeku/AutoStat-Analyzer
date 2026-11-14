@@ -103,8 +103,12 @@ def _charts(frame, digits):
 def _analysis_summary(analyses, digits):
     lines = []
     if test := analyses.get("test_result"):
-        selection = (f"{test.get('outcome')} by {test.get('group')} ({test.get('first_group')} vs {test.get('second_group')})"
-                     if "outcome" in test else f"{test.get('x')} vs {test.get('y')}")
+        if "outcome" in test:
+            selection = f"{test['outcome']} by {test['group']}"
+            if 'first_group' in test:
+                selection += f" ({test['first_group']} vs {test['second_group']})"
+        else:
+            selection = f"{test.get('first', test.get('x'))} vs {test.get('second', test.get('y'))}"
         lines.append(f"{test['method']}: {selection}. p = {format_number(test['pvalue'], digits, pvalue=True)}; n = {test['observations']}. {test['conclusion']} at alpha = {test['alpha']}.")
     if model := analyses.get("regression_result"):
         lines.append(f"OLS target {model['target']}: in-sample R-squared = {format_number(model['r_squared'], digits)}; RMSE = {format_number(model['metrics']['rmse'], digits)}; n = {model['observations']}. This is not holdout performance.")
@@ -114,6 +118,8 @@ def _analysis_summary(analyses, digits):
     if classification := analyses.get("classification_result"):
         best = max(classification["models"], key=lambda m: m["macro_f1"])
         lines.append(f"Classification target {classification['target']}: highest observed macro-F1 = {format_number(best['macro_f1'], digits)} ({best['model']}); stratified holdout n = {classification['test_rows']}. Review minority-class recall; one split only.")
+    if exploration := analyses.get("exploration_result"):
+        lines.append(f"Structure exploration: {exploration['clusters']} K-means clusters; silhouette {format_number(exploration['silhouette'], digits)}. PCA and clustering are descriptive, not predictive validation or proof of natural groups.")
     return lines or ["No hypothesis test, OLS model, or predictive comparison was completed. This report describes exploratory results only."]
 
 
@@ -121,7 +127,7 @@ def _footer(canvas, doc):
     canvas.saveState()
     canvas.setFont("AutoStat", 8)
     canvas.setFillColor(colors.HexColor("#475569"))
-    canvas.drawString(48, 28, "AutoStat Analyzer | Calculated results, no external AI")
+    canvas.drawString(48, 28, "AutoStat Analyzer | Computed evidence; labelled commentary")
     canvas.drawRightString(A4[0]-48, 28, f"Page {doc.page}")
     canvas.restoreState()
 
@@ -141,7 +147,10 @@ def executive_pdf(frame, dataset_name, analyses=None, digits=3, preparation="Ori
              _paragraph(f"Dataset: {dataset_name}", limit=90), _paragraph(f"Preparation: {preparation}", limit=120),
              _paragraph(f"{quality['rows']:,} observations | {quality['columns']} variables | Missing cells: {format_number(quality['missing_percent'], digits)}% | Duplicate rows: {quality['duplicate_rows']:,}"),
              Spacer(1, 8), _charts(frame, digits), Spacer(1, 10), _paragraph("Key calculated findings", "Heading2")]
-    story.extend(_paragraph(line, limit=230) for line in _analysis_summary(analyses or {}, digits))
+    summaries = _analysis_summary(analyses or {}, digits)
+    story.extend(_paragraph(line, limit=230) for line in summaries[:4])
+    if len(summaries) > 4 or (analyses or {}).get('insight_result'):
+        story.append(_paragraph("Additional exploration and any labelled assistant commentary appear in the detailed report."))
     story.extend([_paragraph("Limitations and next steps", "Heading2"),
                   _paragraph("Check data quality and study design before interpreting significance. Missing values are excluded per analysis; prediction features use training-only imputation and encoding. Associations do not establish causation. Repeated testing increases false positives. Review the detailed report for exact variables, exclusions, assumptions and diagnostics."),
                   _paragraph(f"Display: up to {digits} significant figures; small values use scientific notation (e.g. 5e-22). Machine-readable exports retain full precision. Chart labels may be shortened; histogram labels show bin starts. No raw observation rows are included.")])
@@ -202,9 +211,19 @@ def detailed_pdf(frame, dataset_name, analyses=None, digits=3, preparation="Orig
             story.extend([_table(matrix, digits), Spacer(1, 8),
                           _paragraph("Per-class holdout metrics", "Heading3"),
                           _table(pd.DataFrame(details["per_class"]), digits)])
+    if exploration := (analyses or {}).get("exploration_result"):
+        story.append(_paragraph("PCA and K-means structure exploration", "Heading1"))
+        story.extend(_result_details(exploration, digits))
+    if insight := (analyses or {}).get("insight_result"):
+        story.append(_paragraph(f"Assistant commentary ({insight['provider']})", "Heading1"))
+        story.append(_paragraph(insight['commentary']))
+        story.append(_paragraph(insight['validation']))
+        for card in insight['evidence']:
+            story.append(_paragraph(f"{card['id']}: {card['title']}", "Heading3"))
+            story.append(_paragraph(card['statement']))
     if not analyses:
         story.append(_paragraph("No statistical test, OLS model or predictive comparison was completed."))
     story.extend([_paragraph("Interpretation and limitations", "Heading2"),
-                  _paragraph("These observations are derived from calculated results using rules, not an external language model. Test p-values are unadjusted; non-rejection does not prove the null. OLS uses classical standard errors. Diagnostic p-values do not verify all assumptions. Holdout scores use one random split; optional cross-validation is restricted to training rows; time series and repeated subjects require other split strategies. Consult the analysis-specific assumptions above. No analysis establishes causation."),
+                  _paragraph("Statistical calculations are deterministic. Any assistant commentary is separately labelled by provider, references computed evidence, and requires human review; evidence-reference checks do not guarantee interpretive correctness. Test p-values are unadjusted; non-rejection does not prove the null. OLS uses classical standard errors. Diagnostic p-values do not verify all assumptions. Holdout scores use one random split; optional cross-validation is restricted to training rows; time series and repeated subjects require other split strategies. Consult the analysis-specific assumptions above. No analysis establishes causation."),
                   _paragraph(f"Numbers use up to {digits} significant figures; very small values use scientific notation. A computed zero p-value is labelled below numerical precision. Machine exports retain full precision. Long text and chart labels may be shortened; consult JSON/CSV exports for original labels. This report includes aggregate results, not raw rows.")])
     return _build(story, "AutoStat detailed report")

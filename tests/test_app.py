@@ -112,3 +112,70 @@ def test_mixed_predictor_cross_validation_ui():
     next(b for b in app.button if b.label == 'Generate PDF reports').click().run()
     assert not app.exception
     assert app.session_state['pdf_reports']['detailed.pdf'].startswith(b'%PDF-')
+
+
+def test_new_tests_structure_offline_insights_and_chat():
+    app = AppTest.from_file(Path(__file__).resolve().parents[1] / 'app.py', default_timeout=60).run()
+    next(s for s in app.selectbox if s.label == 'Test').set_value('One-way ANOVA').run()
+    next(s for s in app.selectbox if s.label == 'Group-test grouping column').set_value('region')
+    next(b for b in app.button if b.label == 'Run test').click().run()
+    assert not app.exception
+    assert app.session_state['test_result']['method'] == 'One-way ANOVA'
+    next(b for b in app.button if b.label == 'Explore structure').click().run()
+    assert not app.exception
+    assert app.session_state['exploration_result']['clusters'] == 3
+    next(b for b in app.button if b.label == 'Generate insights').click().run()
+    assert not app.exception
+    assert app.session_state['insight_result']['provider'] == 'Offline guide'
+    next(t for t in app.text_input if t.label == 'Your statistical question').set_value('Explain PCA')
+    next(b for b in app.button if b.label == 'Ask assistant').click().run()
+    assert not app.exception
+    assert app.session_state['assistant_messages'][-1]['provider'] == 'Offline guide'
+    next(b for b in app.button if b.label == 'Generate PDF reports').click().run()
+    assert not app.exception
+    assert app.session_state['pdf_reports']['detailed.pdf'].startswith(b'%PDF-')
+    app.checkbox[0].check()
+    next(b for b in app.button if b.label == 'Apply cleaning').click().run()
+    assert 'exploration_result' not in app.session_state
+    assert 'insight_result' not in app.session_state
+    assert 'assistant_messages' not in app.session_state
+
+
+def test_gemini_requires_current_summary_consent(monkeypatch):
+    import json
+    import requests
+    monkeypatch.setenv('GEMINI_API_KEY', 'TEST-KEY-NOT-REAL')
+    monkeypatch.setenv('GEMINI_MODEL', 'test-model')
+    calls = []
+    class Response:
+        status_code = 200
+        def json(self):
+            return {'candidates':[{'content':{'parts':[{'text':json.dumps({'answer':'Review the computed data quality.', 'evidence_ids':['E1']})}]}}]}
+    def post(*args, **kwargs):
+        calls.append(kwargs['json'])
+        return Response()
+    monkeypatch.setattr(requests, 'post', post)
+    app = AppTest.from_file(Path(__file__).resolve().parents[1] / 'app.py', default_timeout=60).run()
+    next(r for r in app.radio if r.label == 'Assistant mode').set_value('Gemini').run()
+    assert not calls
+    assert next(b for b in app.button if b.label == 'Generate insights').disabled
+    next(c for c in app.checkbox if c.label.startswith('I approve sending')).check().run()
+    next(b for b in app.button if b.label == 'Generate insights').click().run()
+    assert not app.exception
+    assert len(calls) == 1
+    assert app.session_state['insight_result']['provider'] == 'Gemini'
+    next(s for s in app.selectbox if s.label == 'Significant figures').set_value(2).run()
+    assert not next(c for c in app.checkbox if c.label.startswith('I approve sending')).value
+    assert 'insight_result' not in app.session_state
+    assert next(b for b in app.button if b.label == 'Generate insights').disabled
+    assert len(calls) == 1
+
+
+def test_unconfigured_gemini_has_actionable_message(monkeypatch):
+    monkeypatch.delenv('GEMINI_API_KEY', raising=False)
+    monkeypatch.delenv('GEMINI_MODEL', raising=False)
+    app = AppTest.from_file(Path(__file__).resolve().parents[1] / 'app.py', default_timeout=60).run()
+    next(r for r in app.radio if r.label == 'Assistant mode').set_value('Gemini').run()
+    assert not app.exception
+    assert any('GEMINI_API_KEY' in item.value for item in app.info)
+    assert next(b for b in app.button if b.label == 'Generate insights').disabled

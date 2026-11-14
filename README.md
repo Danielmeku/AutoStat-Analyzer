@@ -1,6 +1,6 @@
 # AutoStat Analyzer
 
-A working **v0.6 statistical analysis MVP** based on the development blueprint. Built with Python, Streamlit, pandas, Plotly, SciPy, Statsmodels, scikit-learn, and ReportLab. No API key is needed.
+A working **v0.7 statistical analysis & assistant MVP** based on the development blueprint. Built with Python, Streamlit, pandas, Plotly, SciPy, Statsmodels, scikit-learn, and ReportLab. All analyses and the offline guide work without an API key; live Gemini is optional.
 
 ## Run
 
@@ -30,7 +30,11 @@ Open the Streamlit address printed by the terminal. In GitHub Codespaces, use th
 11. In **Export**, press **Generate PDF reports** to download a one-page executive PDF and a detailed PDF. Generate them after running the analyses you want included. The ZIP then includes both PDFs alongside the full-precision results.
 12. In **Classification**, select a categorical or discrete numeric target and numeric/categorical features, then press **Compare classifiers**. Inspect accuracy, balanced accuracy, macro-F1, the confusion matrix and each class’s precision/recall/F1. Results are included in JSON, ZIP and generated PDFs.
 13. Optionally choose **3 or 5 folds** in either comparison tab before comparing. Cross-validation uses the training partition only. Inspect mean scores, sample standard deviations and per-fold scores; final holdout scores remain separate. Cross-validation is off by default and adds training time.
-14. Upload your own UTF-8 CSV using comma, semicolon, or tab separation.
+14. Try **Paired t-test**, **Wilcoxon signed-rank**, **Mann–Whitney U**, **One-way ANOVA**, **Kruskal–Wallis**, or **Fisher exact** in Statistical tests; review the design assumptions before running them.
+15. In **PCA & clusters**, select 2–20 numeric features and a cluster count, then press **Explore structure**. Inspect standardized PCA components, variance explained, cluster sizes/centers and silhouette.
+16. In **Assistant & insights**, use **Offline guide → Generate insights**, or ask a question such as “Explain the p-value” or “What does PCA mean?” This guide uses templates and calculated evidence, not a language model. Saved insights join JSON/ZIP and detailed PDFs; chat history stays in the session.
+17. To use a language model, configure Gemini as described below, review the exact summary payload, and explicitly approve sending it and your current question. No raw rows or previous chat are forwarded.
+18. Upload your own UTF-8 CSV using comma, semicolon, or tab separation.
 
 Uploads are limited to 10 MB, 100,000 observations and 200 columns. Headers must be unique and nonempty; malformed rows and numeric infinity are rejected. No implicit numeric conversion, imputation, encoding, or row deletion is performed. Suggested column roles do not alter data types. Numeric binary columns remain available for descriptive numeric exploration.
 
@@ -38,16 +42,20 @@ Uploads are limited to 10 MB, 100,000 observations and 200 columns. Headers must
 
 Summaries use all available rows; charts reproducibly sample at most 5,000 rows. Standard deviation and variance use sample definitions. Correlations use pairwise complete rows with at least three pairs; constant columns return undefined correlations. Different pairs can use different observations. IQR flags identify candidates for review, not errors. Associations are descriptive and do not establish causation.
 
-This release implements foundation, data review/preparation, EDA, statistical tests, OLS regression with diagnostics, held-out regression and classification model comparison, deterministic quality insights, executive/detailed PDF reports, and analysis exports. **Not yet implemented:** ANOVA, paired/nonparametric tests, inferential logistic regression, clustering, hyperparameter tuning, and conversational AI.
+This release implements foundation, data review/preparation, EDA, statistical tests, OLS regression with diagnostics, held-out regression and classification model comparison, PCA/K-means exploration, grounded offline insights/chat, optional Gemini, executive/detailed PDF reports, and analysis exports. **Still outside this release:** inferential logistic coefficients, automated post-hoc comparisons/multiple-testing correction, time-series/group-aware validation, hyperparameter tuning, hierarchical clustering, production accounts/storage and deployment. Gemini is implemented behind explicit consent; live credentialed validation depends on your key/model access.
 
 ### Tests and models
 
 - **Welch t-test:** independent groups, unequal variances allowed, at least two complete observations per group; reports group means, their difference (first minus second), degrees of freedom and a confidence interval at the selected significance level. Other groups are excluded and counted.
+- **Paired t-test / Wilcoxon signed-rank:** genuinely paired measurements in each row, independent pairs, at least three complete pairs. Paired t assumes approximately normal differences for small samples and reports a difference interval and Cohen’s dz. Wilcoxon assumes symmetric differences, discards zero differences for ranking, and reports signed rank-biserial effect. Identical differences/zero-only differences are handled explicitly.
+- **ANOVA / Kruskal–Wallis:** 2–10 groups with at least two observations per group. Classical ANOVA assumes equal variances and approximately normal errors; eta-squared is descriptive. Kruskal–Wallis compares distributions; a median interpretation needs similar shapes. Epsilon-squared is an omnibus effect estimate. No post-hoc comparisons are performed.
+- **Mann–Whitney U:** two independent groups and at least two observations each; compares distributions rather than automatically comparing medians. Reports signed rank-biserial effect. Other groups are excluded and counted.
+- **Fisher exact:** an observed 2×2 categorical table, independent observations, two-sided conditional inference. Reports table orientation and sample odds ratio. Infinite/undefined odds from empty cells are labelled unavailable; the exact p-value remains available.
 - **Correlation tests:** at least three complete pairs and varying numeric columns. Pearson tests zero linear correlation under its distributional assumptions. Spearman tests zero rank correlation using an asymptotic p-value; small samples need care.
-- **Chi-square independence:** categorical variables with 2–30 levels, no continuity correction; reports Cramér’s V and flags expected counts below 5. Sparse-table results need an appropriate exact method, which is not implemented here.
+- **Chi-square independence:** categorical variables with 2–30 levels, no continuity correction; reports Cramér’s V and flags expected counts below 5. Sparse 2×2 tables can use the Fisher exact option; larger sparse tables need an appropriate method outside this release.
 - **OLS:** 1–20 numeric predictors, at least 10 complete observations and at least predictors + 3 rows. Constant columns and rank-deficient designs are rejected. Coefficients use classical standard errors and 95% confidence intervals. Diagnostics include Jarque–Bera, Breusch–Pagan, Durbin–Watson and a condition-number warning. Near-perfect fits skip residual diagnostics. Durbin–Watson depends on row ordering.
 
-Tests assume independent observations; the software cannot verify study design. P-values are two-sided and unadjusted for multiple testing; failure to reject is not proof of the null. **Inferential OLS metrics are in-sample only** and do not estimate performance on new data. The separate Model comparison tab reports held-out metrics. No analysis establishes causation. Each result records its exact variables, excluded rows, sample size and limitations; unavailable numerical diagnostic values export as JSON null.
+Tests assume independent observations; the software cannot verify study design. Pairwise tests use two-sided alternatives; omnibus tests use standard upper-tail reference distributions. All p-values are unadjusted for multiple testing; failure to reject is not proof of the null. **Inferential OLS metrics are in-sample only** and do not estimate performance on new data. The separate Model comparison tab reports held-out metrics. No analysis establishes causation. Each result records its exact variables, excluded rows, sample size and limitations; unavailable numerical diagnostic values export as JSON null.
 
 ### Predictive evaluation
 
@@ -73,15 +81,39 @@ Cross-validation is optional (off, 3 folds, or 5 folds) and runs **inside the tr
 
 Results include all fold scores, fold sizes, metric means and sample standard deviations (ddof=1). Standard deviations describe fold variation, not confidence intervals. Scores are not nested-CV estimates and no hyperparameters are tuned. Model selection using holdout results still makes those results exploratory; CV does not undo repeated holdout inspection. Independent observations remain necessary. Fold results are included in JSON, ZIP, detailed PDF, and UI tables; integer counts and full-precision machine outputs remain unchanged.
 
+### PCA and K-means exploration
+
+Select 2–20 numeric features and 2–8 clusters with at least 10 active rows. Empty/constant features, infinite values and insufficient distinct feature vectors are rejected. Median imputation and z-score standardization use **all active rows** for descriptive exploration. PCA uses full SVD and reports variance ratios, cumulative ratios and the first two component weights. Component signs are arbitrary. K-means uses the full standardized feature space (seed 42, ten initializations), not only the plotted projection. Cluster centers are transformed back into original feature units.
+
+Silhouette uses at most a reproducible 2,000-row sample and is unavailable if that sample does not support it; inertia depends on scaling and the cluster count. No automatic choice of cluster count, natural-population claim or predictive validation is made. Plots show up to 5,000 sampled rows. Row projections and assignments stay in session memory; exports and assistant summaries include aggregate results only.
+
+### Assistant architecture and optional Gemini
+
+`ai/context_builder.py` explicitly whitelists computed aggregate evidence. It never serializes arbitrary session state, raw rows, category values, row predictions, residual arrays, PCA coordinates or past chat. Evidence cards include dataset-quality counts, completed test results/assumptions, OLS coefficients/diagnostics, model/validation scores and PCA/cluster summaries. Names are shortened in the assistant context; computed numbers use selected display precision. Aggregates and variable names can still be sensitive, so review the payload.
+
+The provider-independent assistant supports a transparent **Offline guide** and optional **Gemini**. Offline replies use topic templates plus evidence cards; it is not a language model and does not calculate arbitrary new analyses. Gemini receives the reviewed context and current question only, after a context-specific consent checkbox. Consent and assistant state reset when active data, evidence or display precision changes. No request is made just by selecting Gemini. Chat retains up to ten exchanges in session memory and is excluded from reports. Saved insight commentary includes its provider and cited evidence in JSON/ZIP and detailed PDFs.
+
+Provider prose must be qualitative: numeric facts are rendered from computed cards. Validation rejects unknown evidence references, inserted digits, malformed responses and selected unsupported certainty/causal phrases. This is a bounded reference/format check, **not semantic fact-checking**: AI interpretations can still be wrong and require review. Gemini output is never executed and cannot run tools or calculations. Dataset labels/questions are treated as untrusted prompt data. Network and authentication/quota/blocked-response errors are shown without exposing keys or remote error bodies. TLS verification stays enabled, requests use timeouts and redirects are disabled. There is no automatic billable retry loop.
+
+#### Enable live Gemini
+
+1. Add `GEMINI_API_KEY` securely using GitHub Codespaces secrets (grant this repository access) or your hosting platform’s secret manager. Never paste a real key into source, issues or chat.
+2. Set `GEMINI_MODEL` to a current model identifier your account can use with the `generateContent` API and JSON output. This app intentionally does not guess an available model. Use an identifier, not a URL/path.
+3. Restart/reconnect the Codespace so variables are injected, activate the virtual environment and restart Streamlit. Alternatively, Streamlit deployment secrets can supply the same two names; `.streamlit/secrets.toml` is ignored by Git.
+4. If outbound networking is restricted, allow `generativelanguage.googleapis.com` over HTTPS. No data is sent until you select Gemini, approve the displayed summary and press Generate insights or Ask assistant.
+5. Test a nonsensitive demo summary first. Availability, quotas and cost depend on your account/model; free access is not assumed.
+
+The integration uses Gemini’s REST `v1beta/models/{model}:generateContent` endpoint. Automated tests mock provider responses to cover request shape, consent, validation, timeouts and common HTTP errors. **No live Gemini call has been validated in this development environment:** no key/model is configured, and the Google API documentation URL returned HTTP 403 from this environment. The complete offline workflow is tested.
+
 ### PDF reports
 
-PDFs are generated on demand in server-session memory, without network calls or disk writes. The executive report is a bounded one-page overview of dataset quality, two compact charts where possible, completed analysis highlights, and interpretation limits. The detailed PDF includes column profiles, descriptive statistics, IQR flags, and only the tests, inferential OLS, and predictive regression/classification comparisons actually run. Classification reports include class distributions, metric tables, labelled confusion counts and per-class scores. Result fields record variables, exclusions, confidence intervals, diagnostics and model scope; no unperformed analyses or AI-generated findings are inserted.
+PDFs are generated on demand in server-session memory, without network calls or disk writes. The executive report is a bounded one-page overview of dataset quality, two compact charts where possible, up to four analysis highlights, and interpretation limits. Additional exploration and assistant commentary are explicitly referred to the detailed report. The detailed PDF includes column profiles, descriptive statistics, IQR flags, and only the tests, inferential OLS, predictive comparisons and PCA/clustering actually run. Saved assistant commentary is separately labelled by provider and contains its computed evidence references. Classification reports include class distributions, metric tables, labelled confusion counts and per-class scores. Result fields record variables, exclusions, confidence intervals, diagnostics and model scope; no unperformed analyses or provider-generated numeric calculations are inserted.
 
 Both use your selected 2 or 3 significant figures, including scientific p-values. Fonts are embedded for consistent rendering. Long labels may be shortened and chart labels show histogram bin starts; full labels/results remain in JSON and CSV. PDFs contain aggregate results, not raw observation rows. Generated reports are cleared when active data, completed analyses, dataset identity, preparation description, or display precision changes. Changing analysis selections without running them leaves reports describing the last completed analysis, consistent with the displayed results.
 
 ## Privacy
 
-Uploaded data stays in the Streamlit server session's memory; the application does not persist it to disk or send it to AI services. Downloads may contain sensitive information. Resetting the working copy restores the original data; remove the uploaded file from its picker or close the session to release it. Infrastructure may have its own retention behavior. For sensitive datasets, use trusted/private hosting. Never commit datasets or API keys. CSV exports preserve user text; treat untrusted CSVs carefully in spreadsheet applications.
+Uploaded data stays in the Streamlit server session's memory; the application does not persist it to disk. The offline guide makes no external requests. Optional Gemini sends the explicitly approved aggregate summary and current question to Google; it does not receive raw rows or previous chat. Your external provider may have its own retention policies. Downloads may contain sensitive information. Resetting the working copy restores the original data; remove the uploaded file from its picker or close the session to release it. Infrastructure may have its own retention behavior. For sensitive datasets, use trusted/private hosting. Never commit datasets or API keys. CSV exports preserve user text; treat untrusted CSVs carefully in spreadsheet applications.
 
 ## Tests
 
@@ -89,14 +121,14 @@ Uploaded data stays in the Streamlit server session's memory; the application do
 python -m pytest -q
 ```
 
-Tests cover CSV ingestion/rejection, mixed-type profiling, known statistical results, non-destructive cleaning, export contents, statistical reference values, regression recovery and degeneracy checks, analysis export contents, train-only imputation, reproducible holdout predictions, significant-figure formatting, PDF parsing/content, embedded fonts, one-page executive layout and detailed pagination, report invalidation, stratified classification/reference metrics, train-only scaling, mixed-feature encoding, unseen categories, train-only cross-validation fits and fold-score summaries, numeric/multiclass labels, and Streamlit test/model/comparison/clean/reset journeys. GitHub Actions runs the suite on Python 3.12.
+Tests cover CSV ingestion/rejection, mixed-type profiling, known statistical results, non-destructive cleaning, export contents, statistical reference values, regression recovery and degeneracy checks, analysis export contents, train-only imputation, reproducible holdout predictions, significant-figure formatting, PDF parsing/content, embedded fonts, one-page executive layout and detailed pagination, report invalidation, stratified classification/reference metrics, train-only scaling, mixed-feature encoding, unseen categories, train-only cross-validation fits and fold-score summaries, numeric/multiclass labels, extended statistical reference tests, PCA/clustering reproducibility, aggregate-only AI context, offline chat, Gemini request/error mocks, consent invalidation, and Streamlit end-to-end user journeys. GitHub Actions runs the suite on Python 3.12.
 
 ## Architecture and next steps
 
 - `modules/`: ingestion, validation, preparation, profiling, and descriptive calculations.
-- `ai/insight_teller.py`: transparent rules using computed results. No language model is connected.
+- `ai/`: aggregate context, rule-based guide, provider protocol, optional Gemini, response/reference validation and grounded insight records.
 - `reporting/`: number formatting, Markdown/JSON/CSV bundles, and in-memory executive/detailed PDFs.
 - `ui/`: statistical analysis controls and result displays.
 - `app.py`: UI orchestration and per-session working copy.
 
-Next: broader tests and exploratory clustering; then a provider-independent AI assistant receiving only explicitly approved aggregate results. Gemini credentials are unnecessary for this milestone and should later be supplied through environment variables or Streamlit secrets, never source code.
+Next: live Gemini validation with your configured credentials; broader inference and validation designs; deployment hardening. No key is needed for the offline assistant or statistical workflows.

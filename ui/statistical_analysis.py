@@ -2,7 +2,7 @@
 import plotly.express as px
 import pandas as pd
 import streamlit as st
-from modules.hypothesis_testing import welch_test, correlation_test, chi_square_test
+from modules.hypothesis_testing import welch_test, correlation_test, chi_square_test, paired_test, group_test, mann_whitney_test, fisher_test
 from modules.regression import fit_regression
 from reporting.results import json_result
 from reporting.formatting import format_number, display_result, display_table
@@ -20,13 +20,13 @@ def _scatter(*args, **kwargs):
 def render_tests(frame):
     digits = st.session_state.get("significant_figures", 3)
     st.subheader("Statistical tests")
-    st.caption("Choose a test based on your study design. These are two-sided, unadjusted tests; repeated testing increases false positives. Missing observations are excluded only for selected variables.")
+    st.caption("Choose a test based on your study design. P-values are unadjusted; repeated testing increases false positives. Pairwise alternatives are two-sided; omnibus tests use their standard upper-tail reference. Missing observations are excluded only for selected variables.")
     numbers = list(frame.select_dtypes(include="number"))
     columns = list(frame.columns)
-    method = st.selectbox("Test", ["Welch two-sample t-test", "Correlation test", "Chi-square independence"])
+    method = st.selectbox("Test", ["Welch two-sample t-test", "Correlation test", "Chi-square independence", "Paired t-test", "Wilcoxon signed-rank", "One-way ANOVA", "Kruskal–Wallis", "Mann–Whitney U", "Fisher exact (2×2)"])
     alpha = st.select_slider("Significance level", options=[0.01, 0.05, 0.10], value=0.05)
     operation = None
-    if method == "Welch two-sample t-test":
+    if method in {"Welch two-sample t-test", "Mann–Whitney U"}:
         groups = [c for c in columns if 2 <= frame[c].nunique() <= 30]
         if numbers and groups:
             value = st.selectbox("Outcome", numbers)
@@ -34,9 +34,25 @@ def render_tests(frame):
             levels = list(frame[group].dropna().unique())
             first = st.selectbox("First group", levels)
             second = st.selectbox("Second group", levels, index=1)
-            operation = lambda: welch_test(frame, value, group, first, second, alpha)
+            operation = lambda: (welch_test if method == "Welch two-sample t-test" else mann_whitney_test)(frame, value, group, first, second, alpha)
         else:
             st.info("Need a numeric outcome and a grouping column with 2–30 levels.")
+    elif method in {"One-way ANOVA", "Kruskal–Wallis"}:
+        groups = [c for c in columns if 2 <= frame[c].nunique() <= 10]
+        if numbers and groups:
+            value = st.selectbox("Group-test outcome", numbers)
+            group = st.selectbox("Group-test grouping column", groups)
+            operation = lambda: group_test(frame, value, group, "anova" if method == "One-way ANOVA" else "kruskal", alpha)
+        else:
+            st.info("Need a numeric outcome and a grouping column with 2–10 levels.")
+    elif method in {"Paired t-test", "Wilcoxon signed-rank"}:
+        if len(numbers) >= 2:
+            first = st.selectbox("First paired measurement", numbers)
+            second = st.selectbox("Second paired measurement", numbers, index=1)
+            st.caption("Only use these tests when each row contains genuinely paired measurements.")
+            operation = lambda: paired_test(frame, first, second, "t" if method == "Paired t-test" else "wilcoxon", alpha)
+        else:
+            st.info("Need two numeric paired measurement columns.")
     elif method == "Correlation test":
         if len(numbers) >= 2:
             x = st.selectbox("First numeric variable", numbers)
@@ -50,7 +66,7 @@ def render_tests(frame):
         if len(groups) >= 2:
             x = st.selectbox("First categorical variable", groups)
             y = st.selectbox("Second categorical variable", groups, index=1)
-            operation = lambda: chi_square_test(frame, x, y, alpha)
+            operation = lambda: (fisher_test if method == "Fisher exact (2×2)" else chi_square_test)(frame, x, y, alpha)
         else:
             st.info("Need at least two categorical variables with 2–30 levels.")
     if operation and st.button("Run test", type="primary"):
