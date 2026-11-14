@@ -2,6 +2,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 from modules.classification import compare_classifiers
+from ui.evaluation import render_cross_validation
 from reporting.formatting import display_table, display_result
 from reporting.results import json_result
 
@@ -10,24 +11,25 @@ def render_classification(frame):
     digits = st.session_state.get("significant_figures", 3)
     st.subheader("Classification laboratory")
     st.write("Compare a majority-class baseline, logistic regression and a random forest on the same stratified holdout.")
-    st.caption("Choose a categorical or discrete numeric target (2–10 classes). Features are numeric in this release. Need 30 observed targets and at least 5 rows in every class.")
+    st.caption("Choose a categorical or discrete numeric target (2–10 classes). Numeric and categorical features are supported. Need 30 observed targets and at least 5 rows in every class.")
     targets = [c for c in frame if 2 <= frame[c].nunique() <= 10]
     if not targets:
         st.info("No classification targets with 2–10 classes were detected.")
         return
     target = st.selectbox("Classification target", targets)
-    choices = [c for c in frame.select_dtypes(include="number") if c != target]
+    choices = [c for c in [*frame.select_dtypes(include="number").columns, *frame.select_dtypes(exclude="number").columns] if c != target]
     if not choices:
-        st.info("Need at least one numeric predictor distinct from the target.")
+        st.info("Need at least one predictor distinct from the target.")
         return
     predictors = st.multiselect("Classification features", choices, default=choices[:1])
     fraction = st.selectbox("Classification holdout", [0.2, 0.3], format_func=lambda v: f"{v:.0%}")
-    st.caption("Fixed seed: 42. Stratification preserves approximate class proportions; imputation and logistic scaling are learned only from training rows.")
+    cv_folds = st.selectbox("Classification cross-validation", [0, 3, 5], format_func=lambda v: "Off" if v == 0 else f"{v} folds (training only)")
+    st.caption("Seed: 42. Stratified splits; training-only median/mode imputation, one-hot encoding and logistic numeric scaling. Categorical predictors: up to 30 levels; unseen levels encode as all zeros. Cross-validation adds training time.")
     if st.button("Compare classifiers", type="primary"):
         st.session_state.pop("classification_result", None)
         try:
             with st.spinner("Evaluating classifiers…"):
-                st.session_state["classification_result"] = compare_classifiers(frame, target, predictors, fraction)
+                st.session_state["classification_result"] = compare_classifiers(frame, target, predictors, fraction, cv_folds=cv_folds)
         except (ValueError, KeyError) as exc:
             st.error(str(exc))
     if result := st.session_state.get("classification_result"):
@@ -40,6 +42,7 @@ def render_classification(frame):
         st.info(result["scope"])
         if result["duplicate_rows"]:
             st.warning(f"Found {result['duplicate_rows']} duplicate model rows. Review possible leakage across the random split.")
+        render_cross_validation(result, digits)
         selected = st.selectbox("Inspect classifier", list(result["evaluation"]))
         evaluation = result["evaluation"][selected]
         # Plotly otherwise treats numeric-looking class names as a numeric axis.

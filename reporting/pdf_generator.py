@@ -143,7 +143,7 @@ def executive_pdf(frame, dataset_name, analyses=None, digits=3, preparation="Ori
              Spacer(1, 8), _charts(frame, digits), Spacer(1, 10), _paragraph("Key calculated findings", "Heading2")]
     story.extend(_paragraph(line, limit=230) for line in _analysis_summary(analyses or {}, digits))
     story.extend([_paragraph("Limitations and next steps", "Heading2"),
-                  _paragraph("Check data quality and study design before interpreting significance. Missing values are excluded per analysis; prediction features use training-only median imputation. Associations do not establish causation. Repeated testing increases false positives. Review the detailed report for exact variables, exclusions, assumptions and diagnostics."),
+                  _paragraph("Check data quality and study design before interpreting significance. Missing values are excluded per analysis; prediction features use training-only imputation and encoding. Associations do not establish causation. Repeated testing increases false positives. Review the detailed report for exact variables, exclusions, assumptions and diagnostics."),
                   _paragraph(f"Display: up to {digits} significant figures; small values use scientific notation (e.g. 5e-22). Machine-readable exports retain full precision. Chart labels may be shortened; histogram labels show bin starts. No raw observation rows are included.")])
     return _build(story, "AutoStat executive summary")
 
@@ -155,7 +155,13 @@ def _result_details(result, digits, prefix=""):
         if isinstance(value, dict):
             story.extend(_result_details(value, digits, prefix=label + " / "))
         elif isinstance(value, list) and value and isinstance(value[0], dict):
-            story.extend([_paragraph(label, "Heading3"), _table(pd.DataFrame(value), digits), Spacer(1, 8)])
+            story.append(_paragraph(label, "Heading3"))
+            if any(isinstance(v, (dict, list)) for row in value for v in row.values()):
+                for i, row in enumerate(value, 1):
+                    story.append(_paragraph(row.get("model", f"Entry {i}"), "Heading3"))
+                    story.extend(_result_details({k: v for k, v in row.items() if k != "model"}, digits))
+            else:
+                story.extend([_table(pd.DataFrame(value), digits), Spacer(1, 8)])
         elif isinstance(value, list):
             story.append(_paragraph(label + ": " + ", ".join(_number(v, digits, key) for v in value)))
         else:
@@ -199,6 +205,6 @@ def detailed_pdf(frame, dataset_name, analyses=None, digits=3, preparation="Orig
     if not analyses:
         story.append(_paragraph("No statistical test, OLS model or predictive comparison was completed."))
     story.extend([_paragraph("Interpretation and limitations", "Heading2"),
-                  _paragraph("These observations are derived from calculated results using rules, not an external language model. Test p-values are unadjusted; non-rejection does not prove the null. OLS uses classical standard errors. Diagnostic p-values do not verify all assumptions. Holdout comparisons use one random split, not cross-validation; time series and repeated subjects require other split strategies. Consult the analysis-specific assumptions above. No analysis establishes causation."),
+                  _paragraph("These observations are derived from calculated results using rules, not an external language model. Test p-values are unadjusted; non-rejection does not prove the null. OLS uses classical standard errors. Diagnostic p-values do not verify all assumptions. Holdout scores use one random split; optional cross-validation is restricted to training rows; time series and repeated subjects require other split strategies. Consult the analysis-specific assumptions above. No analysis establishes causation."),
                   _paragraph(f"Numbers use up to {digits} significant figures; very small values use scientific notation. A computed zero p-value is labelled below numerical precision. Machine exports retain full precision. Long text and chart labels may be shortened; consult JSON/CSV exports for original labels. This report includes aggregate results, not raw rows.")])
     return _build(story, "AutoStat detailed report")

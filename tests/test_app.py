@@ -92,3 +92,23 @@ def test_classification_flow_and_report_invalidation():
     next(b for b in app.button if b.label == 'Apply cleaning').click().run()
     assert 'classification_result' not in app.session_state
     assert 'pdf_reports' not in app.session_state
+
+
+def test_mixed_predictor_cross_validation_ui():
+    app = AppTest.from_file(Path(__file__).resolve().parents[1] / 'app.py', default_timeout=60).run()
+    next(s for s in app.multiselect if s.label == 'Prediction features').set_value(['marketing_spend', 'region'])
+    next(s for s in app.selectbox if s.label == 'Regression cross-validation').set_value(3)
+    next(b for b in app.button if b.label == 'Compare models').click().run()
+    assert not app.exception
+    result = app.session_state['comparison_result']
+    assert result['categorical_predictors'] == ['region']
+    assert result['cross_validation']['folds'] == 3
+    next(s for s in app.selectbox if s.label == 'Classification target').set_value('satisfaction').run()
+    next(s for s in app.multiselect if s.label == 'Classification features').set_value(['marketing_spend', 'region'])
+    next(s for s in app.selectbox if s.label == 'Classification cross-validation').set_value(3)
+    next(b for b in app.button if b.label == 'Compare classifiers').click().run()
+    assert not app.exception
+    assert app.session_state['classification_result']['cross_validation']['folds'] == 3
+    next(b for b in app.button if b.label == 'Generate PDF reports').click().run()
+    assert not app.exception
+    assert app.session_state['pdf_reports']['detailed.pdf'].startswith(b'%PDF-')

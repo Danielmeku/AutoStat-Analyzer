@@ -7,6 +7,7 @@ from modules.regression import fit_regression
 from reporting.results import json_result
 from reporting.formatting import format_number, display_result, display_table
 from modules.machine_learning import compare_regressors
+from ui.evaluation import render_cross_validation
 
 
 def _scatter(*args, **kwargs):
@@ -117,20 +118,21 @@ def render_comparison(frame):
     st.write("Compare a training-mean baseline, linear regression, and a random forest on the same unseen rows.")
     st.caption("Use independent observations. For time series or repeated subjects, a different splitting strategy is needed.")
     numbers = list(frame.select_dtypes(include="number"))
-    if len(numbers) < 2:
-        st.info("Need at least two numeric columns for predictive evaluation.")
+    if not numbers or len(frame.columns) < 2:
+        st.info("Need a numeric target and at least one other predictor.")
         return
-    target = st.selectbox("Prediction target", numbers, index=1)
-    choices = [c for c in numbers if c != target]
+    target = st.selectbox("Prediction target", numbers, index=min(1, len(numbers)-1))
+    choices = [c for c in [*numbers, *frame.select_dtypes(exclude="number").columns] if c != target]
     predictors = st.multiselect("Prediction features", choices, default=choices[:1])
     fraction = st.selectbox("Holdout fraction", [0.2, 0.3], format_func=lambda v: f"{v:.0%}")
-    st.caption("Fixed seed: 42. Missing targets are excluded. Feature medians are fitted on training rows only; your working copy is preserved.")
+    cv_folds = st.selectbox("Regression cross-validation", [0, 3, 5], format_func=lambda v: "Off" if v == 0 else f"{v} folds (training only)")
+    st.caption("Numeric and categorical features supported (max 30 levels per categorical feature). Training-only imputation and one-hot encoding; unknown categories encode as all zeros. Cross-validation adds training time. Original data is preserved.")
     if st.button("Compare models", type="primary"):
         for key in ["comparison_result", "comparison_predictions"]:
             st.session_state.pop(key, None)
         try:
             with st.spinner("Training and evaluating models…"):
-                result, predictions = compare_regressors(frame, target, predictors, fraction)
+                result, predictions = compare_regressors(frame, target, predictors, fraction, cv_folds=cv_folds)
             st.session_state["comparison_result"] = result
             st.session_state["comparison_predictions"] = predictions
         except (ValueError, KeyError) as exc:
@@ -144,6 +146,7 @@ def render_comparison(frame):
         st.info(result["scope"])
         if result["duplicate_rows"]:
             st.warning(f"Found {result['duplicate_rows']} duplicate model rows. Repeated records may leak information across the random split; review whether deduplication is appropriate.")
+        render_cross_validation(result, digits)
         predictions = st.session_state["comparison_predictions"]
         model = st.selectbox("Inspect holdout predictions", [entry["model"] for entry in result["models"]])
         chart = predictions.sample(min(5000, len(predictions)), random_state=42)

@@ -19,7 +19,7 @@ from reporting.formatting import display_table, format_number
 
 st.set_page_config(page_title="AutoStat Analyzer", page_icon="📊", layout="wide")
 st.title("AutoStat Analyzer")
-st.caption("STATISTICAL WORKSPACE · v0.5")
+st.caption("STATISTICAL WORKSPACE · v0.6")
 st.write("Understand your data before you model it. Upload, review, explore, and export your findings.")
 with st.sidebar:
     st.header("Your workspace")
@@ -146,7 +146,7 @@ with insights:
     for finding in quality_insights(quality, digits):
         st.info(finding)
     st.markdown("#### Next development milestones")
-    st.write("Broader statistical tests, cross-validation, and an optional AI assistant are planned. This release includes hypothesis tests, OLS diagnostics, held-out regression and classification comparison, and PDF reports.")
+    st.write("Broader statistical tests and an optional AI assistant are planned. This release includes hypothesis tests, OLS diagnostics, mixed-feature model comparison, optional training-only cross-validation, and PDF reports.")
 
 with export:
     st.subheader("Take your analysis with you")
