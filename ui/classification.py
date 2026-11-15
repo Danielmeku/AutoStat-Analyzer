@@ -11,8 +11,6 @@ from reporting.results import json_result
 def render_classification(frame):
     digits = st.session_state.get("significant_figures", 3)
     st.subheader("Classification laboratory")
-    st.write("Compare a majority-class baseline, logistic regression and a random forest on the same stratified holdout.")
-    st.caption("Choose a categorical or discrete numeric target (2–10 classes). Numeric and categorical features are supported. Need 30 observed targets and at least 5 rows in every class.")
     targets = [c for c in frame if 2 <= frame[c].nunique() <= 10]
     if not targets:
         st.info("No classification targets with 2–10 classes were detected.")
@@ -25,7 +23,6 @@ def render_classification(frame):
     predictors = st.multiselect("Classification features", choices, default=choices[:1])
     fraction = st.selectbox("Classification holdout", [0.2, 0.3], format_func=lambda v: f"{v:.0%}")
     cv_folds = st.selectbox("Classification cross-validation", [0, 3, 5], format_func=lambda v: "Off" if v == 0 else f"{v} folds (training only)")
-    st.caption("Seed: 42. Stratified splits; training-only median/mode imputation, one-hot encoding and logistic numeric scaling. Categorical predictors: up to 30 levels; unseen levels encode as all zeros. Cross-validation adds training time.")
     if st.button("Compare classifiers", type="primary"):
         st.session_state.pop("classification_result", None)
         try:
@@ -35,7 +32,6 @@ def render_classification(frame):
             st.error(str(exc))
     if result := st.session_state.get("classification_result"):
         st.markdown("#### Last completed classification")
-        st.caption("Selections alone do not recompute results; compare again after changing them.")
         st.write(f"Target: {result['target']} · Features: {', '.join(result['predictors'])}")
         st.write(f"Training rows: {result['train_rows']} · Holdout rows: {result['test_rows']} · Excluded missing targets: {result['excluded_target_rows']}")
         st.dataframe(display_table(pd.DataFrame(result["models"]), digits), hide_index=True, width="stretch")

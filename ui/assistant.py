@@ -17,7 +17,6 @@ def _show_evidence(cards):
 
 def render_assistant(frame, analyses, data_signature, digits):
     st.subheader("Statistical assistant & insights")
-    st.caption("Explore your results with the offline guide or Gemini.")
     context = build_context(frame, analyses, digits)
     signature = hashlib.sha256((data_signature + str(digits) + json_result(context)).encode()).hexdigest()
     if st.session_state.get("assistant_signature") != signature:
@@ -31,7 +30,7 @@ def render_assistant(frame, analyses, data_signature, digits):
     configured = True
     api_key, model = os.environ.get('GEMINI_API_KEY'), os.environ.get('GEMINI_MODEL')
     if selected == 'Gemini':
-        st.caption("Generate insights and Ask assistant send the aggregate summary and your current question to Google Gemini. Review the summary above before continuing. No raw rows or chat history are sent.")
+        st.caption("Gemini actions send the summary and your question to Google.")
         if not (api_key and model):
             try:
                 api_key = api_key or st.secrets.get('GEMINI_API_KEY')
@@ -53,10 +52,7 @@ def render_assistant(frame, analyses, data_signature, digits):
         st.markdown(f"#### Saved insights · {insight['provider']}")
         st.text(insight['commentary'])
         _show_evidence(insight['evidence'])
-        st.caption(insight['validation'])
-        st.caption("Saved insights are included in the analysis ZIP and detailed PDF. Regenerate PDFs after creating insights.")
     st.markdown("#### Ask about your results")
-    st.caption("Try: Explain the p-value · Which models should I compare? · What does PCA mean? Replies are not independent verification. Do not include sensitive information in a Gemini question.")
     with st.form('assistant_question_form', clear_on_submit=True):
         question = st.text_input("Your statistical question", max_chars=1000)
         submitted = st.form_submit_button("Ask assistant", disabled=not configured)

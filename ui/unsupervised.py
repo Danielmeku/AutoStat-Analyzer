@@ -10,7 +10,6 @@ from reporting.results import json_result
 def render_structure(frame):
     digits = st.session_state.get("significant_figures", 3)
     st.subheader("PCA and clustering")
-    st.caption("Descriptive exploration: median imputation and standardization use all active rows. This is not held-out predictive evaluation.")
     numbers = list(frame.select_dtypes(include="number"))
     if len(numbers) < 2:
         st.info("Need at least two numeric features for PCA and K-means.")
@@ -29,7 +28,6 @@ def render_structure(frame):
             st.error(str(exc))
     if result := st.session_state.get("exploration_result"):
         st.markdown("#### Last completed structure exploration")
-        st.caption("Changing selections requires running again. Charts show at most 5,000 reproducibly sampled rows.")
         plots = st.session_state["exploration_plots"]
         chart = plots.sample(min(5000, len(plots)), random_state=42)
         figure = px.scatter(chart, x="PC1", y="PC2", color="Cluster", title="PCA projection coloured by K-means cluster")

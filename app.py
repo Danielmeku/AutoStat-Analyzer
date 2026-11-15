@@ -27,7 +27,6 @@ with st.sidebar:
     source = st.radio("Dataset source", ["Demo dataset", "Upload CSV"])
     uploaded = st.file_uploader("Choose a UTF-8 CSV", type=["csv"]) if source == "Upload CSV" else None
     delimiter = st.selectbox("CSV separator", [",", ";", "\t"], format_func=lambda x: {",": "Comma", ";": "Semicolon", "\t": "Tab"}[x]) if source == "Upload CSV" else ","
-    st.caption("Limits: 10 MB · 100,000 rows · 200 columns")
     digits = st.selectbox("Significant figures", [2, 3], index=1, key="significant_figures")
 
     st.divider()
@@ -68,7 +67,6 @@ if st.session_state.get("last_digits", digits) != digits:
 st.session_state["last_digits"] = digits
 quality = validate_data(frame)
 st.subheader(name)
-st.caption(st.session_state["preparation"])
 with st.container(key="overview"):
     a, b, c, d = st.columns(4)
     a.metric("Observations", f"{quality['rows']:,}")
@@ -86,12 +84,10 @@ if st.session_state.get("pdf_signature") != report_signature:
 if step == "Data review":
     st.subheader("Review before you transform")
     st.dataframe(frame.head(500), hide_index=True, width="stretch")
-    st.caption("Preview shows up to 500 rows. Analyses use the complete active dataset.")
     st.dataframe(display_table(profile_data(frame), digits), hide_index=True, width="stretch")
     if quality["constant_columns"]:
         st.warning("Constant or empty columns: " + ", ".join(quality["constant_columns"]))
     st.markdown("#### Prepare a working copy")
-    st.caption("Choices always start from the original upload. Your original data is preserved.")
     duplicates = st.checkbox("Remove duplicate rows")
     missing = st.checkbox("Drop rows containing any missing value")
     try:
@@ -112,7 +108,6 @@ if step == "Explore":
     numbers = list(frame.select_dtypes(include="number").columns)
     categories = list(frame.select_dtypes(exclude="number").columns)
     st.subheader("Distributions & relationships")
-    st.caption("Missing values are omitted per chart or pair. Charts use up to 5,000 reproducibly sampled rows; tables use all rows.")
     chart_data = frame.sample(min(5000, len(frame)), random_state=42)
     if numbers:
         variable = st.selectbox("Numeric variable", numbers)
@@ -133,10 +128,8 @@ if step == "Explore":
             matrix = correlation_matrix(frame, method)
             with correlation:
                 plot_chart(px.imshow(matrix, zmin=-1, zmax=1, color_continuous_scale=["#22D3EE", "#171B35", "#A78BFA"], title=f"{method.title()} correlation"), width="stretch")
-            st.caption("At least 3 paired observations are required. Constant columns have undefined correlations. Correlation does not imply causation.")
         st.markdown("#### Potential outliers")
         st.dataframe(outlier_summary(frame), hide_index=True, width="stretch")
-        st.caption("Flags fall outside Q1 − 1.5 × IQR or Q3 + 1.5 × IQR. They are not automatically removed.")
     else:
         st.info("No numeric columns detected. Categorical exploration is available below.")
     if categories:
@@ -169,7 +162,6 @@ if step == "Assistant & insights":
 
 if step == "Export":
     st.subheader("Take your analysis with you")
-    st.write("Export your working copy and computed results. Generate PDFs to add a one-page executive summary and a detailed statistical report to your downloads and ZIP.")
     if st.button("Generate PDF reports", type="primary"):
         with st.spinner("Preparing reports from calculated results…"):
             pdfs = {
@@ -182,11 +174,9 @@ if step == "Export":
     if pdfs:
         st.download_button("Download executive PDF", pdfs["executive.pdf"], "autostat-executive.pdf", "application/pdf")
         st.download_button("Download detailed PDF", pdfs["detailed.pdf"], "autostat-detailed.pdf", "application/pdf")
-        st.caption("PDFs use your selected display precision and last completed analyses. Reports reset after data, completed analyses, or precision changes. Long labels may be shortened; original labels remain in machine exports.")
     st.download_button("Download analysis bundle", analysis_bundle(frame, name, analyses, pdfs), "autostat-analysis.zip", "application/zip")
     st.download_button("Download summary", executive_report(frame, name), "autostat-summary.md", "text/markdown")
     st.download_button("Download active dataset", frame.to_csv(index=False).encode("utf-8"), "autostat-working-copy.csv", "text/csv")
-    st.caption("Exports contain dataset information. Store and share them according to your data's sensitivity. CSV text is preserved; use care when opening untrusted data in spreadsheet software.")
 
 # A calculation on another page can change report contents during this run.
 analyses = {key: st.session_state[key] for key in ["test_result", "regression_result", "comparison_result", "classification_result", "exploration_result", "insight_result"] if key in st.session_state}

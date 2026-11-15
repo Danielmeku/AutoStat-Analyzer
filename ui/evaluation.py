@@ -8,7 +8,6 @@ def render_cross_validation(result, digits):
     if not cv.get("folds"):
         return
     st.markdown("#### Training-only cross-validation")
-    st.caption(f"{cv['folds']} folds using {cv['training_rows']} training rows. Holdout rows are excluded. Standard deviations describe fold variation, not confidence intervals.")
     summary, folds = [], []
     for model in cv["models"]:
         for metric, values in model["metrics"].items():

@@ -21,7 +21,6 @@ def _scatter(*args, **kwargs):
 def render_tests(frame):
     digits = st.session_state.get("significant_figures", 3)
     st.subheader("Statistical tests")
-    st.caption("Choose a test based on your study design. P-values are unadjusted; repeated testing increases false positives. Pairwise alternatives are two-sided; omnibus tests use their standard upper-tail reference. Missing observations are excluded only for selected variables.")
     numbers = list(frame.select_dtypes(include="number"))
     columns = list(frame.columns)
     method = st.selectbox("Test", ["Welch two-sample t-test", "Correlation test", "Chi-square independence", "Paired t-test", "Wilcoxon signed-rank", "One-way ANOVA", "Kruskal–Wallis", "Mann–Whitney U", "Fisher exact (2×2)"])
@@ -66,7 +65,6 @@ def render_tests(frame):
         if len(numbers) >= 2:
             first = st.selectbox("First paired measurement", numbers)
             second = st.selectbox("Second paired measurement", numbers, index=1)
-            st.caption("Only use these tests when each row contains genuinely paired measurements.")
             operation = lambda: paired_test(frame, first, second, "t" if method == "Paired t-test" else "wilcoxon", alpha)
         else:
             st.info("Need two numeric paired measurement columns.")
@@ -94,7 +92,6 @@ def render_tests(frame):
             st.error(str(exc))
     if result := st.session_state.get("test_result"):
         st.markdown("#### Last completed test")
-        st.caption("Results reflect the last Run test action; changing selections requires running again.")
         st.write(result["method"])
         st.write(f"{result['conclusion']} at α = {format_number(result['alpha'], digits)}. This does not prove either hypothesis.")
         st.write(f"Statistic: {format_number(result['statistic'], digits)} · p-value: {format_number(result['pvalue'], digits, pvalue=True)} · observations: {result['observations']} · excluded rows: {result['excluded_rows']}")
@@ -108,7 +105,6 @@ def render_tests(frame):
 def render_regression(frame):
     digits = st.session_state.get("significant_figures", 3)
     st.subheader("Linear regression laboratory")
-    st.caption("Fit numeric outcomes using ordinary least squares. Coefficients describe associations holding the other selected predictors fixed.")
     numbers = list(frame.select_dtypes(include="number"))
     if len(numbers) < 2:
         st.info("Need at least two numeric columns to fit a model.")
@@ -127,7 +123,6 @@ def render_regression(frame):
             st.error(str(exc))
     if result := st.session_state.get("regression_result"):
         st.markdown("#### Last fitted model")
-        st.caption("Changing selections requires fitting again. Intervals below have 95% confidence.")
         st.write(f"Target: {result['target']} · Predictors: {', '.join(result['predictors'])}")
         left, middle, right = st.columns(3)
         left.metric("In-sample R²", format_number(result['r_squared'], digits))
@@ -151,8 +146,6 @@ def render_regression(frame):
 def render_comparison(frame):
     digits = st.session_state.get("significant_figures", 3)
     st.subheader("Predictive model comparison")
-    st.write("Compare a training-mean baseline, linear regression, and a random forest on the same unseen rows.")
-    st.caption("Use independent observations. For time series or repeated subjects, a different splitting strategy is needed.")
     numbers = list(frame.select_dtypes(include="number"))
     if not numbers or len(frame.columns) < 2:
         st.info("Need a numeric target and at least one other predictor.")
@@ -162,7 +155,6 @@ def render_comparison(frame):
     predictors = st.multiselect("Prediction features", choices, default=choices[:1])
     fraction = st.selectbox("Holdout fraction", [0.2, 0.3], format_func=lambda v: f"{v:.0%}")
     cv_folds = st.selectbox("Regression cross-validation", [0, 3, 5], format_func=lambda v: "Off" if v == 0 else f"{v} folds (training only)")
-    st.caption("Numeric and categorical features supported (max 30 levels per categorical feature). Training-only imputation and one-hot encoding; unknown categories encode as all zeros. Cross-validation adds training time. Original data is preserved.")
     if st.button("Compare models", type="primary"):
         for key in ["comparison_result", "comparison_predictions"]:
             st.session_state.pop(key, None)
@@ -175,7 +167,6 @@ def render_comparison(frame):
             st.error(str(exc))
     if result := st.session_state.get("comparison_result"):
         st.markdown("#### Last completed comparison")
-        st.caption("Changing selections requires comparing again. These models are separate from the full-sample inferential OLS fit.")
         st.write(f"Target: {result['target']} · Features: {', '.join(result['predictors'])}")
         st.write(f"Training rows: {result['train_rows']} · Holdout rows: {result['test_rows']} · Excluded missing targets: {result['excluded_target_rows']}")
         st.dataframe(display_table(pd.DataFrame(result["models"]), digits), hide_index=True, width="stretch")
