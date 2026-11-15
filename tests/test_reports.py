@@ -47,7 +47,7 @@ def test_reports_contain_only_completed_analyses_and_chosen_precision():
     assert 'Cleaned working copy' in text
     _, text = _read(detailed)
     assert 'Completed hypothesis test' in text
-    assert 'Inferential OLS model (in-sample)' in text
+    assert 'Regression model (in-sample)' in text
     assert 'Predictive model comparison (holdout)' in text
     assert '5e-22' in text
     assert 'standard error' in text

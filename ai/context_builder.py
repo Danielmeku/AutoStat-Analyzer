@@ -18,11 +18,17 @@ def build_context(frame, analyses, digits=3):
         selection = f"{label(test.get('outcome', test.get('first', test.get('x', ''))))} / {label(test.get('group', test.get('second', test.get('y', ''))))}"
         add("test_result", "Hypothesis test", f"{test['method']} ({selection}): statistic {fmt(test['statistic'])}; p-value {fmt(test['pvalue'], True)}; alpha {fmt(test['alpha'])}; complete observations {test['observations']}; excluded rows {test['excluded_rows']}. {test['conclusion']}. Null: {test['null_hypothesis']} Assumptions: {test['assumptions']}")
     if model := analyses.get("regression_result"):
-        add("regression_result", "In-sample OLS", f"Target {label(model['target'])}: full-sample R-squared {fmt(model['r_squared'])}, RMSE {fmt(model['metrics']['rmse'])}; observations {model['observations']}; excluded {model['excluded_rows']}. These are in-sample fit metrics, not predictive validation. Classical standard errors assume independent homoscedastic errors.")
-        for coefficient in model['coefficients'][:5]:
-            add("regression_result", "OLS coefficient", f"Term {label(coefficient['term'])}: estimate {fmt(coefficient['estimate'])}, p-value {fmt(coefficient['pvalue'], True)}, confidence interval [{fmt(coefficient['ci_lower'])}, {fmt(coefficient['ci_upper'])}]. Association conditional on selected predictors, not causation.")
+        add("regression_result", "In-sample regression", f"{model.get('method', 'Ordinary least squares')}; inference {model.get('covariance', 'Classical')}; response scale {model.get('response_transformation', {}).get('name', 'None')}. Target {label(model['target'])}: full-sample R-squared {fmt(model['r_squared'])}, RMSE {fmt(model['metrics']['rmse'])}; observations {model['observations']}; excluded {model['excluded_rows']}. These are in-sample fit metrics, not predictive validation. Inference depends on the selected covariance method and study design; fit metrics use the modeled response scale.")
+        for term_number, coefficient in enumerate(model['coefficients'][:5], 1):
+            # Encoded coefficient labels contain category values; never send those labels to providers.
+            term_label = f'Encoded model term {term_number}' if model.get('reference_categories') else label(coefficient['term'])
+            add("regression_result", "Regression coefficient", f"Term {term_label}: estimate {fmt(coefficient['estimate'])}, p-value {fmt(coefficient['pvalue'], True)}, confidence interval [{fmt(coefficient['ci_lower'])}, {fmt(coefficient['ci_upper'])}]. Association conditional on selected predictors, not causation.")
         diagnostics = model['diagnostics']
         add("regression_result", "Residual diagnostics", f"Jarque–Bera p-value {fmt(diagnostics.get('jarque_bera_pvalue'), True)}; Breusch–Pagan p-value {fmt(diagnostics.get('breusch_pagan_pvalue'), True)}; Durbin–Watson {fmt(diagnostics.get('durbin_watson'))}. {diagnostics.get('note', '')}")
+        if influence := model.get('influence'):
+            add("regression_result", "Influence review", f"Observations crossing at least one influence review threshold: {influence['flagged_rows']}. Thresholds are heuristics, not deletion rules. No observations were automatically removed.")
+        if values := model.get('vif'):
+            add("regression_result", "Collinearity", f"Expanded model terms with VIF above the review threshold: {sum(v['vif'] > 5 for v in values)}. Review redundant predictors and model specification; this does not justify automatic removal.")
     for key in ["comparison_result", "classification_result"]:
         if result := analyses.get(key):
             ordered_models = sorted(result['models'], key=lambda m: m['rmse'] if key == 'comparison_result' else -m['macro_f1'])

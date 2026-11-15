@@ -178,3 +178,47 @@ def fisher_test(frame, x, y, alpha=0.05):
                 statistic_note="Statistic is the sample odds ratio; a missing value indicates infinite/undefined odds due to empty cells.",
                 null_hypothesis="The odds ratio is one (independence in the two-by-two table).",
                 assumptions="Independent observations with mutually exclusive categories; conditional exact inference given margins. The odds ratio orientation follows the displayed row/column level order.")
+
+
+def partial_correlation_test(frame, x, y, controls, alpha=0.05):
+    """Pearson partial correlation after linear adjustment on the same complete cases."""
+    controls = list(controls)
+    if x == y or not controls or len(controls) > 20 or len(set([x, y, *controls])) != len(controls)+2:
+        raise ValueError('Choose distinct numeric variables and 1–20 distinct control variables.')
+    data = _numeric(frame, [x, y, *controls])
+    design = np.column_stack([np.ones(len(data)), data[controls].to_numpy()])
+    df = len(data)-len(controls)-2
+    if df <= 0 or np.linalg.matrix_rank(design) < design.shape[1]:
+        raise ValueError('Need independent control columns and positive residual test degrees of freedom.')
+    residuals = [data[c].to_numpy()-design @ np.linalg.lstsq(design, data[c], rcond=None)[0] for c in [x, y]]
+    if any(np.std(r) <= np.finfo(float).eps*max(1., np.std(data[c])) for r, c in zip(residuals, [x,y])):
+        raise ValueError('A selected variable has no variation after adjustment.')
+    coefficient = float(np.clip(np.corrcoef(*residuals)[0, 1], -1, 1))
+    if abs(coefficient) >= 1-1e-14:
+        raise ValueError('Perfect adjusted correlation makes finite t inference undefined.')
+    statistic = coefficient*np.sqrt(df/(1-coefficient**2))
+    return _result('Pearson partial correlation', statistic, 2*stats.t.sf(abs(statistic), df), len(data), len(frame)-len(data), alpha,
+                   x=str(x), y=str(y), controls=controls, partial_correlation=coefficient,
+                   partial_r_squared=coefficient**2, degrees_of_freedom=df,
+                   null_hypothesis='Population linear partial correlation is zero.',
+                   assumptions='Independent observations, linear adjustment and normal-model t inference. Adjustment is conditional association, not causal control. Missing rows excluded jointly.')
+
+
+def variance_equality_test(frame, outcome, group, method='levene', alpha=0.05):
+    if outcome == group or method not in {'levene', 'bartlett'}:
+        raise ValueError('Choose distinct outcome/group columns and Levene or Bartlett.')
+    _numeric(frame, [outcome])
+    data = frame[[outcome, group]].dropna()
+    levels = list(data[group].unique())
+    if not 2 <= len(levels) <= 10:
+        raise ValueError('Variance comparison requires 2–10 groups.')
+    arrays = [data.loc[data[group] == level, outcome].to_numpy(dtype=float) for level in levels]
+    if min(map(len, arrays)) < 3 or any(np.var(values) <= 0 for values in arrays):
+        raise ValueError('Each variance-test group needs at least three varying observations.')
+    test = stats.levene(*arrays, center='median') if method == 'levene' else stats.bartlett(*arrays)
+    return _result('Levene median-centered variance test' if method == 'levene' else 'Bartlett variance test',
+                   test.statistic, test.pvalue, len(data), len(frame)-len(data), alpha,
+                   outcome=str(outcome), group=str(group),
+                   groups=[{'group': str(level), 'n': len(values), 'sample_variance': float(np.var(values, ddof=1))} for level, values in zip(levels, arrays)],
+                   null_hypothesis='Population variances are equal across groups.',
+                   assumptions='Independent observations and groups. Bartlett is sensitive to non-normality; median-centered Levene is more robust. Non-rejection does not establish equal variances.')

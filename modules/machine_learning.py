@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 from sklearn.dummy import DummyRegressor
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import LinearRegression, Ridge, Lasso
 from sklearn.metrics import r2_score
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import make_pipeline
@@ -12,7 +12,12 @@ from modules.preprocessing import prepare_features, feature_transformer, validat
 from modules.cross_validation import training_cross_validation
 
 
-def compare_regressors(frame, target, predictors, test_size=0.2, seed=42, cv_folds=0):
+def compare_regressors(frame, target, predictors, test_size=0.2, seed=42, cv_folds=0, regularization=None, penalty=1.0):
+    if not np.isfinite(penalty) or penalty <= 0:
+        raise ValueError("Regularization strength must be finite and positive.")
+    regularization = list(regularization or [])
+    if any(name not in {"Ridge", "Lasso"} for name in regularization):
+        raise ValueError("Choose Ridge and/or Lasso.")
     predictors = list(predictors)
     if not predictors or len(predictors) > 20 or target in predictors or len(set(predictors)) != len(predictors):
         raise ValueError("Select 1–20 distinct predictors, excluding the target.")
@@ -39,7 +44,11 @@ def compare_regressors(frame, target, predictors, test_size=0.2, seed=42, cv_fol
         "Linear regression": LinearRegression(),
         "Random forest": RandomForestRegressor(n_estimators=100, max_depth=12, min_samples_leaf=2, random_state=seed, n_jobs=2),
     }
-    candidates = {name: make_pipeline(feature_transformer(numeric, categorical), estimator) for name, estimator in candidates.items()}
+    if "Ridge" in regularization:
+        candidates["Ridge"] = Ridge(alpha=penalty, solver="lsqr")
+    if "Lasso" in regularization:
+        candidates["Lasso"] = Lasso(alpha=penalty, max_iter=10000)
+    candidates = {name: make_pipeline(feature_transformer(numeric, categorical, scale=name in {"Ridge", "Lasso"}), estimator) for name, estimator in candidates.items()}
     cv = training_cross_validation(candidates, xtrain, ytrain, cv_folds, seed=seed)
     metrics, prediction_frame = [], pd.DataFrame({"Observed": ytest.to_numpy()})
     for name, model in candidates.items():
@@ -54,6 +63,7 @@ def compare_regressors(frame, target, predictors, test_size=0.2, seed=42, cv_fol
         "missing_predictor_cells": int(data[predictors].isna().sum().sum()),
         "duplicate_rows": int(data.duplicated().sum()), "test_fraction": test_size, "seed": seed,
         "preprocessing": "Numeric medians, categorical modes and one-hot categories learned on training rows only. Unseen categories encode as all-zero indicators. Missing targets excluded; original data unchanged.",
+        "regularization": {"models": regularization, "penalty": float(penalty), "selection": "User-chosen fixed penalty; no holdout tuning. Numeric scaling learned within training partitions."},
         "models": metrics, "cross_validation": cv, "numeric_predictors": numeric, "categorical_predictors": categorical,
-        "scope": "One shared random holdout for all three models. Lower RMSE/MAE is better; higher R-squared is better and can be negative. This is exploratory comparison, not independent confirmation after model selection. Random splitting assumes independent rows; unsuitable for time series or repeated subjects. Duplicate records can leak across partitions. No hyperparameter tuning. Optional cross-validation is reported separately and uses only training rows.",
+        "scope": "One shared random holdout for all selected models. Lower RMSE/MAE is better; higher R-squared is better and can be negative. This is exploratory comparison, not independent confirmation after model selection. Random splitting assumes independent rows; unsuitable for time series or repeated subjects. Duplicate records can leak across partitions. No hyperparameter tuning. Optional cross-validation is reported separately and uses only training rows.",
     }, prediction_frame

@@ -225,3 +225,39 @@ def test_dashboard_navigation_chart_layout_and_optional_details():
     assert app.session_state['test_result']['observations'] > 0
     navigate(app, 'Export')
     assert app.session_state['test_result']['observations'] > 0
+
+
+def test_advanced_regression_specification_diagnostics_and_partial_correlation():
+    app = AppTest.from_file(Path(__file__).resolve().parents[1] / 'app.py', default_timeout=60).run()
+    navigate(app, 'Regression')
+    next(s for s in app.selectbox if s.label == 'Coefficient inference').set_value('HC3')
+    next(s for s in app.multiselect if s.label == 'Predictors (up to 20)').set_value(['marketing_spend', 'region'])
+    next(b for b in app.button if b.label == 'Fit regression').click().run()
+    assert not app.exception
+    result = app.session_state['regression_result']
+    assert result['covariance'] == 'HC3'
+    assert result['reference_categories']
+    assert result['anova']
+    assert len(app.get('plotly_chart')) == 6
+    next(b for b in app.button if b.label == 'Predict new observations').click().run()
+    assert not app.exception
+    assert len(app.session_state['regression_new_predictions']) == 1
+    navigate(app, 'Data review')
+    app.checkbox[0].check()
+    next(b for b in app.button if b.label == 'Apply cleaning').click().run()
+    assert 'regression_new_predictions' not in app.session_state
+    navigate(app, 'Statistical tests')
+    next(s for s in app.selectbox if s.label == 'Test').set_value('Partial correlation').run()
+    next(s for s in app.multiselect if s.label == 'Control variables').set_value(['satisfaction'])
+    next(b for b in app.button if b.label == 'Run test').click().run()
+    assert not app.exception
+    assert app.session_state['test_result']['method'] == 'Pearson partial correlation'
+
+
+def test_regularized_models_ui():
+    app = AppTest.from_file(Path(__file__).resolve().parents[1] / 'app.py', default_timeout=60).run()
+    navigate(app, 'Model comparison')
+    next(s for s in app.multiselect if s.label == 'Additional models').set_value(['Ridge', 'Lasso'])
+    next(b for b in app.button if b.label == 'Compare models').click().run()
+    assert not app.exception
+    assert len(app.session_state['comparison_result']['models']) == 5

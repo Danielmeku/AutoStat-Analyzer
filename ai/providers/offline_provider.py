@@ -8,6 +8,18 @@ class OfflineProvider:
         if any(term in query for term in ['p-value', 'p value', 'significan', 'hypothesis', 'anova', 'wilcoxon', 'fisher', 'kruskal', 'mann', 'paired']):
             answer = "A p-value describes how incompatible the data are with the null under the test assumptions. Compare it with the preselected significance level; non-rejection is not proof of the null. Check independence, distributions and multiple testing before interpretation."
             sources = ['test_result']
+        elif any(term in query for term in ['leverage', 'influenc', 'cook', 'dffits', 'dfbetas']):
+            answer = 'Influence measures identify observations whose removal could change a fitted regression. High leverage concerns predictor location; large residuals concern outcome disagreement. Review source data and justified sensitivity analyses rather than automatically deleting flagged cases.'
+            sources = ['regression_result']
+        elif any(term in query for term in ['vif', 'multicollinear', 'ridge', 'lasso']):
+            answer = 'Collinearity can inflate coefficient uncertainty even when overall fit is strong. Review redundant features and the scientific model. Regularized predictive models shrink coefficients and should be compared using training-only preprocessing and validation, not treated as classical coefficient inference.'
+            sources = ['regression_result', 'comparison_result']
+        elif any(term in query for term in ['box-cox', 'box cox', 'transform', 'weighted least', 'wls', 'hc3']):
+            answer = 'Transformations change the modeled response or predictor scale. Weighted least squares needs justified inverse-variance weights. Heteroscedasticity-consistent covariance adjusts coefficient uncertainty but does not fix dependence, bias, or individual prediction intervals. Review diagnostics after a justified refit.'
+            sources = ['regression_result']
+        elif any(term in query for term in ['prediction interval', 'predict new', 'mean interval']):
+            answer = 'A mean confidence interval describes uncertainty in the conditional mean. A prediction interval also includes individual future error. Extrapolation and model assumptions matter. Inverse-transformed fitted values are not automatically bias-corrected means.'
+            sources = ['regression_result']
         elif any(term in query for term in ['breusch', 'heteroscedastic']):
             answer = 'The Breusch–Pagan test looks for evidence that residual variance changes with predictors. A small p-value challenges the constant-variance assumption behind classical coefficient uncertainty. Review residual plots and consider an appropriate robust method; this app does not automatically change the fitted model.'
             sources = ['regression_result']

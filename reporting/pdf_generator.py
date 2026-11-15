@@ -111,7 +111,7 @@ def _analysis_summary(analyses, digits):
             selection = f"{test.get('first', test.get('x'))} vs {test.get('second', test.get('y'))}"
         lines.append(f"{test['method']}: {selection}. p = {format_number(test['pvalue'], digits, pvalue=True)}; n = {test['observations']}. {test['conclusion']} at alpha = {test['alpha']}.")
     if model := analyses.get("regression_result"):
-        lines.append(f"OLS target {model['target']}: in-sample R-squared = {format_number(model['r_squared'], digits)}; RMSE = {format_number(model['metrics']['rmse'], digits)}; n = {model['observations']}. This is not holdout performance.")
+        lines.append(f"{model.get('method', 'Ordinary least squares')} target {model['target']} ({model.get('covariance', 'Classical')}; response scale {model.get('response_transformation', {}).get('name', 'None')}): in-sample R-squared = {format_number(model['r_squared'], digits)}; RMSE = {format_number(model['metrics']['rmse'], digits)}; n = {model['observations']}. This is not holdout performance.")
     if comparison := analyses.get("comparison_result"):
         best = min(comparison["models"], key=lambda m: m["rmse"])
         lines.append(f"Holdout comparison target {comparison['target']}: lowest observed RMSE = {format_number(best['rmse'], digits)} ({best['model']}); holdout n = {comparison['test_rows']}. One random split, not independent confirmation after selection.")
@@ -191,7 +191,7 @@ def detailed_pdf(frame, dataset_name, analyses=None, digits=3, preparation="Orig
                       _paragraph("All active rows; missing values excluded separately per column. Sample standard deviations and variances use n-1. IQR flags are review candidates, not automatic errors."),
                       _table(summary[["count", "mean", "std", "min", "median", "max"]].reset_index(names="Column"), digits),
                       _paragraph("Potential outliers", "Heading2"), _table(outlier_summary(frame), digits)])
-    sections = {"test_result": "Completed hypothesis test", "regression_result": "Inferential OLS model (in-sample)",
+    sections = {"test_result": "Completed hypothesis test", "regression_result": "Regression model (in-sample)",
                 "comparison_result": "Predictive model comparison (holdout)"}
     for key, title in sections.items():
         if result := (analyses or {}).get(key):
@@ -224,6 +224,6 @@ def detailed_pdf(frame, dataset_name, analyses=None, digits=3, preparation="Orig
     if not analyses:
         story.append(_paragraph("No statistical test, OLS model or predictive comparison was completed."))
     story.extend([_paragraph("Interpretation and limitations", "Heading2"),
-                  _paragraph("Statistical calculations are deterministic. Any assistant commentary is separately labelled by provider, references computed evidence, and requires human review; evidence-reference checks do not guarantee interpretive correctness. Test p-values are unadjusted; non-rejection does not prove the null. OLS uses classical standard errors. Diagnostic p-values do not verify all assumptions. Holdout scores use one random split; optional cross-validation is restricted to training rows; time series and repeated subjects require other split strategies. Consult the analysis-specific assumptions above. No analysis establishes causation."),
+                  _paragraph("Statistical calculations are deterministic. Any assistant commentary is separately labelled by provider, references computed evidence, and requires human review; evidence-reference checks do not guarantee interpretive correctness. Test p-values are unadjusted; non-rejection does not prove the null. Regression inference uses the selected covariance method; transformed models report metrics on the modeled response scale. HC3 does not repair dependence or individual prediction intervals. Diagnostic p-values do not verify all assumptions. Holdout scores use one random split; optional cross-validation is restricted to training rows; time series and repeated subjects require other split strategies. Consult the analysis-specific assumptions above. No analysis establishes causation."),
                   _paragraph(f"Numbers use up to {digits} significant figures; very small values use scientific notation. A computed zero p-value is labelled below numerical precision. Machine exports retain full precision. Long text and chart labels may be shortened; consult JSON/CSV exports for original labels. This report includes aggregate results, not raw rows.")])
     return _build(story, "AutoStat detailed report")

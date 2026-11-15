@@ -31,6 +31,8 @@ with st.sidebar:
 
     st.divider()
     step = st.radio("Analysis workflow", ["Data review", "Explore", "Statistical tests", "Regression", "Model comparison", "Classification", "PCA & clusters", "Assistant & insights", "Export"])
+    with st.popover("Analysis guide"):
+        st.write("Review data quality and study design, then explore distributions and relationships. Choose a test for your design or specify a regression model. Inspect residuals, collinearity and influence before considering remedies. Use held-out model comparisons for prediction; export the analyses you have completed.")
     st.divider()
     if st.button("Reset working copy"):
         st.session_state.pop("fingerprint", None)
@@ -58,7 +60,7 @@ frame = st.session_state["active"]
 # Invalidate all computed analyses whenever active data change (including cleaning/reset).
 analysis_fingerprint = hashlib.sha256(pd.util.hash_pandas_object(frame, index=True).values.tobytes() + str(list(frame.columns)).encode()).hexdigest()
 if st.session_state.get("analysis_fingerprint") != analysis_fingerprint:
-    for result_key in ["test_result", "regression_result", "regression_plots", "comparison_result", "comparison_predictions", "classification_result", "exploration_result", "exploration_plots", "insight_result", "assistant_messages"]:
+    for result_key in ["test_result", "regression_result", "regression_plots", "regression_fit", "regression_new_predictions", "regression_nested_result", "comparison_result", "comparison_predictions", "classification_result", "exploration_result", "exploration_plots", "insight_result", "assistant_messages"]:
         st.session_state.pop(result_key, None)
     st.session_state["analysis_fingerprint"] = analysis_fingerprint
 if st.session_state.get("last_digits", digits) != digits:
@@ -74,6 +76,16 @@ with st.container(key="overview"):
     c.metric("Missing cells", f"{format_number(quality['missing_percent'], digits)}%")
     d.metric("Duplicate rows", quality["duplicate_rows"])
 
+
+def invalidate_commentary():
+    evidence = {key: st.session_state[key] for key in ["test_result", "regression_result", "comparison_result", "classification_result", "exploration_result"] if key in st.session_state}
+    signature = hashlib.sha256((analysis_fingerprint + str(digits) + json_result(evidence)).encode()).hexdigest()
+    if st.session_state.get("completed_evidence_signature") != signature:
+        for key in ["insight_result", "assistant_messages", "assistant_signature"]:
+            st.session_state.pop(key, None)
+        st.session_state["completed_evidence_signature"] = signature
+
+invalidate_commentary()
 
 analyses = {key: st.session_state[key] for key in ["test_result", "regression_result", "comparison_result", "classification_result", "exploration_result", "insight_result"] if key in st.session_state}
 report_signature = hashlib.sha256((analysis_fingerprint + name + st.session_state["preparation"] + str(digits) + json_result(analyses)).encode()).hexdigest()
@@ -179,6 +191,7 @@ if step == "Export":
     st.download_button("Download active dataset", frame.to_csv(index=False).encode("utf-8"), "autostat-working-copy.csv", "text/csv")
 
 # A calculation on another page can change report contents during this run.
+invalidate_commentary()
 analyses = {key: st.session_state[key] for key in ["test_result", "regression_result", "comparison_result", "classification_result", "exploration_result", "insight_result"] if key in st.session_state}
 report_signature = hashlib.sha256((analysis_fingerprint + name + st.session_state["preparation"] + str(digits) + json_result(analyses)).encode()).hexdigest()
 if st.session_state.get("pdf_signature") != report_signature:
