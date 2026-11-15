@@ -24,7 +24,7 @@ def render_assistant(frame, analyses, data_signature, digits):
         for key in ["assistant_messages", "insight_result"]:
             st.session_state.pop(key, None)
         st.session_state['assistant_signature'] = signature
-    selected = st.radio("Assistant mode", ["Offline guide", "Gemini"], horizontal=True)
+    selected = "Gemini"
     with st.expander("Review the summary available to the assistant", expanded=selected == 'Gemini'):
         st.json(context)
         st.caption("No raw rows, category values, row predictions, PCA coordinates or earlier chat messages are sent. Column/target names, computed aggregates and your current question can still be sensitive.")
