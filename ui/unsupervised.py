@@ -1,6 +1,7 @@
 import pandas as pd
 import plotly.express as px
 import streamlit as st
+from ui.presentation import result_details
 from modules.unsupervised import explore_structure
 from reporting.formatting import display_table, display_result
 from reporting.results import json_result
@@ -33,10 +34,14 @@ def render_structure(frame):
         chart = plots.sample(min(5000, len(plots)), random_state=42)
         figure = px.scatter(chart, x="PC1", y="PC2", color="Cluster", title="PCA projection coloured by K-means cluster")
         figure.update_traces(hovertemplate=f"PC1: %{{x:.{digits}g}}<br>PC2: %{{y:.{digits}g}}<extra></extra>")
-        st.plotly_chart(figure, width="stretch")
+        left, right = st.columns(2)
+        with left:
+            st.plotly_chart(figure, width="stretch")
+        with right:
+            st.plotly_chart(px.bar(pd.DataFrame(result["cluster_sizes"]), x="cluster", y="rows", title="Cluster membership", color_discrete_sequence=["#22D3EE"]), width="stretch")
         for key in ["explained_variance", "component_weights", "cluster_sizes", "cluster_centers"]:
             st.markdown(f"**{key.replace('_', ' ').title()}**")
             st.dataframe(display_table(pd.DataFrame(result[key]), digits), hide_index=True, width="stretch")
         st.info(result["scope"])
-        st.json(display_result({k: v for k, v in result.items() if not isinstance(v, list)}, digits))
+        result_details(display_result({k: v for k, v in result.items() if not isinstance(v, list)}, digits))
         st.download_button("Download structure result", json_result(result), "autostat-structure.json", "application/json")

@@ -2,6 +2,7 @@
 import plotly.express as px
 import pandas as pd
 import streamlit as st
+from ui.presentation import result_details
 from modules.hypothesis_testing import welch_test, correlation_test, chi_square_test, paired_test, group_test, mann_whitney_test, fisher_test
 from modules.regression import fit_regression
 from reporting.results import json_result
@@ -24,6 +25,22 @@ def render_tests(frame):
     numbers = list(frame.select_dtypes(include="number"))
     columns = list(frame.columns)
     method = st.selectbox("Test", ["Welch two-sample t-test", "Correlation test", "Chi-square independence", "Paired t-test", "Wilcoxon signed-rank", "One-way ANOVA", "Kruskal–Wallis", "Mann–Whitney U", "Fisher exact (2×2)"])
+    with st.popover("About this test"):
+        descriptions = {
+            "Welch two-sample t-test": "Compare the means of two independent groups. Allows unequal variances. Check independence and the shape of small samples.",
+            "Correlation test": "Measure association between two numeric variables. Pearson describes linear association; Spearman describes monotonic rank association. Neither establishes causation.",
+            "Chi-square independence": "Test whether two categorical variables are associated. Requires independent observations and adequate expected cell counts.",
+            "Paired t-test": "Compare the mean difference between paired measurements, such as before and after. Small samples require approximately normal differences.",
+            "Wilcoxon signed-rank": "Compare paired measurements using ranks. Assumes a symmetric distribution of differences; zero differences are omitted for ranking.",
+            "One-way ANOVA": "Compare means across independent groups. Assumes approximately normal errors and equal variances. A significant result does not identify which groups differ.",
+            "Kruskal–Wallis": "Compare distributions across independent groups using ranks. Interpreting this as a median comparison requires similarly shaped distributions.",
+            "Mann–Whitney U": "Compare distributions of two independent groups using ranks. It is not automatically a test of medians.",
+            "Fisher exact (2×2)": "Test association in a two-by-two categorical table. Useful for small counts; assumes independent observations.",
+        }
+        st.write(descriptions[method])
+        st.markdown("**Reading the numbers**")
+        st.write("The statistic measures departure from the null hypothesis on the test’s own scale. The p-value measures how incompatible the data are with that null model; it is not the probability the hypothesis is true. A p-value below your chosen significance level is evidence against the null, subject to the assumptions.")
+        st.write("Effect sizes describe magnitude; confidence intervals describe uncertainty under the model. Review excluded rows and assumptions. A nonsignificant result does not prove no difference. Multiple unadjusted tests increase false positives.")
     alpha = st.select_slider("Significance level", options=[0.01, 0.05, 0.10], value=0.05)
     operation = None
     if method in {"Welch two-sample t-test", "Mann–Whitney U"}:
@@ -84,7 +101,7 @@ def render_tests(frame):
         st.info(result["assumptions"])
         if result.get("sparse_cells", 0):
             st.warning("Some expected cell counts are below 5. The chi-square p-value may be unreliable.")
-        st.json(display_result(result, digits))
+        result_details(display_result(result, digits))
         st.download_button("Download test result", json_result(result), "autostat-test.json", "application/json")
 
 
@@ -119,12 +136,15 @@ def render_regression(frame):
         st.write(f"Excluded incomplete rows: {result['excluded_rows']}")
         st.dataframe(display_table(pd.DataFrame(result["coefficients"]), digits), hide_index=True, width="stretch")
         st.info(result["scope"])
-        st.json(display_result(result["diagnostics"], digits))
+        result_details(display_result(result["diagnostics"], digits))
         if result["condition_number"] > 1000:
             st.warning("The design matrix has a high condition number. Review scaling and possible multicollinearity.")
         plots = st.session_state["regression_plots"].sample(min(5000, result["observations"]), random_state=42)
-        st.plotly_chart(_scatter(plots, x="Fitted", y="Residual", title="Residuals vs fitted (up to 5,000 rows)"), width="stretch")
-        st.plotly_chart(_scatter(plots, x="Observed", y="Fitted", title="Observed vs fitted (in-sample)"), width="stretch")
+        left, right = st.columns(2)
+        with left:
+            st.plotly_chart(_scatter(plots, x="Fitted", y="Residual", title="Residuals vs fitted (up to 5,000 rows)"), width="stretch")
+        with right:
+            st.plotly_chart(_scatter(plots, x="Observed", y="Fitted", title="Observed vs fitted (in-sample)"), width="stretch")
         st.download_button("Download regression result", json_result(result), "autostat-regression.json", "application/json")
 
 
@@ -167,5 +187,5 @@ def render_comparison(frame):
         model = st.selectbox("Inspect holdout predictions", [entry["model"] for entry in result["models"]])
         chart = predictions.sample(min(5000, len(predictions)), random_state=42)
         st.plotly_chart(_scatter(chart, x="Observed", y=model, title=f"Holdout observations vs predictions · {model}"), width="stretch")
-        st.json(display_result(result, digits))
+        result_details(display_result(result, digits))
         st.download_button("Download comparison result", json_result(result), "autostat-comparison.json", "application/json")
