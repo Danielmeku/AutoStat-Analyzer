@@ -12,7 +12,7 @@ from reporting.executive_report import executive_report
 from reporting.detailed_report import analysis_bundle
 from reporting.pdf_generator import executive_pdf, detailed_pdf
 from reporting.results import json_result
-from ui.presentation import apply_style
+from ui.presentation import apply_style, workspace_header, plot_chart
 from ui.classification import render_classification
 from ui.unsupervised import render_structure
 from ui.assistant import render_assistant
@@ -21,8 +21,7 @@ from reporting.formatting import display_table, format_number
 
 st.set_page_config(page_title="AutoStat Analyzer", page_icon="📊", layout="wide")
 apply_style()
-st.title("AutoStat Analyzer")
-st.caption("Your data. Clearer decisions.")
+workspace_header()
 with st.sidebar:
     st.header("Your workspace")
     source = st.radio("Dataset source", ["Demo dataset", "Upload CSV"])
@@ -70,11 +69,12 @@ st.session_state["last_digits"] = digits
 quality = validate_data(frame)
 st.subheader(name)
 st.caption(st.session_state["preparation"])
-a, b, c, d = st.columns(4)
-a.metric("Observations", f"{quality['rows']:,}")
-b.metric("Variables", quality["columns"])
-c.metric("Missing cells", f"{format_number(quality['missing_percent'], digits)}%")
-d.metric("Duplicate rows", quality["duplicate_rows"])
+with st.container(key="overview"):
+    a, b, c, d = st.columns(4)
+    a.metric("Observations", f"{quality['rows']:,}")
+    b.metric("Variables", quality["columns"])
+    c.metric("Missing cells", f"{format_number(quality['missing_percent'], digits)}%")
+    d.metric("Duplicate rows", quality["duplicate_rows"])
 
 
 analyses = {key: st.session_state[key] for key in ["test_result", "regression_result", "comparison_result", "classification_result", "exploration_result", "insight_result"] if key in st.session_state}
@@ -118,9 +118,9 @@ if step == "Explore":
         variable = st.selectbox("Numeric variable", numbers)
         left, right = st.columns(2)
         with left:
-            st.plotly_chart(px.histogram(chart_data, x=variable, nbins=30, color_discrete_sequence=["#A78BFA"]), width="stretch")
+            plot_chart(px.histogram(chart_data, x=variable, nbins=30, title="Distribution", color_discrete_sequence=["#B06CFF"]), width="stretch")
         with right:
-            st.plotly_chart(px.box(chart_data, y=variable, color_discrete_sequence=["#A78BFA"]), width="stretch")
+            plot_chart(px.box(chart_data, y=variable, title="Spread & outliers", color_discrete_sequence=["#24D9ED"]), width="stretch")
         st.markdown("#### Descriptive statistics")
         st.dataframe(display_table(numeric_summary(frame), digits), width="stretch")
         if len(numbers) >= 2:
@@ -128,11 +128,11 @@ if step == "Explore":
             y = st.selectbox("Vertical axis", numbers, index=1)
             relationship, correlation = st.columns(2)
             with relationship:
-                st.plotly_chart(px.scatter(chart_data, x=x, y=y, opacity=0.65), width="stretch")
+                plot_chart(px.scatter(chart_data, x=x, y=y, opacity=0.75, title="Variable relationship", color_discrete_sequence=["#24D9ED"]), width="stretch")
             method = st.radio("Correlation method", ["pearson", "spearman"], horizontal=True)
             matrix = correlation_matrix(frame, method)
             with correlation:
-                st.plotly_chart(px.imshow(matrix, zmin=-1, zmax=1, color_continuous_scale=["#22D3EE", "#171B35", "#A78BFA"], title=f"{method.title()} correlation"), width="stretch")
+                plot_chart(px.imshow(matrix, zmin=-1, zmax=1, color_continuous_scale=["#22D3EE", "#171B35", "#A78BFA"], title=f"{method.title()} correlation"), width="stretch")
             st.caption("At least 3 paired observations are required. Constant columns have undefined correlations. Correlation does not imply causation.")
         st.markdown("#### Potential outliers")
         st.dataframe(outlier_summary(frame), hide_index=True, width="stretch")
@@ -142,8 +142,11 @@ if step == "Explore":
     if categories:
         category = st.selectbox("Categorical / date variable", categories)
         counts = frame[category].astype("string").fillna("(missing)").value_counts().head(20).rename_axis("Value").reset_index(name="Count")
-        st.plotly_chart(px.bar(counts, x="Value", y="Count", title="Top 20 values"), width="stretch")
-        st.dataframe(counts, hide_index=True, width="stretch")
+        category_chart, category_table = st.columns([2, 1])
+        with category_chart:
+            plot_chart(px.bar(counts, x="Value", y="Count", title="Top 20 values", color_discrete_sequence=["#F36DAE"]), width="stretch")
+        with category_table:
+            st.dataframe(counts, hide_index=True, width="stretch")
 
 if step == "Statistical tests":
     render_tests(frame)

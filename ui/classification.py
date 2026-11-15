@@ -1,7 +1,7 @@
 import pandas as pd
 import plotly.express as px
 import streamlit as st
-from ui.presentation import result_details
+from ui.presentation import result_details, plot_chart
 from modules.classification import compare_classifiers
 from ui.evaluation import render_cross_validation
 from reporting.formatting import display_table, display_result
@@ -54,7 +54,7 @@ def render_classification(frame):
         figure.update_traces(hovertemplate="Actual: %{y}<br>Predicted: %{x}<br>Rows: %{z:d}<extra></extra>")
         left, right = st.columns(2)
         with left:
-            st.plotly_chart(figure, width="stretch")
+            plot_chart(figure, width="stretch")
         with right:
             st.markdown("#### Per-class performance")
             st.dataframe(display_table(pd.DataFrame(evaluation["per_class"]), digits), hide_index=True, width="stretch")

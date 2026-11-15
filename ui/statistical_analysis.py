@@ -2,7 +2,7 @@
 import plotly.express as px
 import pandas as pd
 import streamlit as st
-from ui.presentation import result_details
+from ui.presentation import result_details, plot_chart
 from modules.hypothesis_testing import welch_test, correlation_test, chi_square_test, paired_test, group_test, mann_whitney_test, fisher_test
 from modules.regression import fit_regression
 from reporting.results import json_result
@@ -142,9 +142,9 @@ def render_regression(frame):
         plots = st.session_state["regression_plots"].sample(min(5000, result["observations"]), random_state=42)
         left, right = st.columns(2)
         with left:
-            st.plotly_chart(_scatter(plots, x="Fitted", y="Residual", title="Residuals vs fitted (up to 5,000 rows)"), width="stretch")
+            plot_chart(_scatter(plots, x="Fitted", y="Residual", title="Residuals vs fitted (up to 5,000 rows)"), width="stretch")
         with right:
-            st.plotly_chart(_scatter(plots, x="Observed", y="Fitted", title="Observed vs fitted (in-sample)"), width="stretch")
+            plot_chart(_scatter(plots, x="Observed", y="Fitted", title="Observed vs fitted (in-sample)"), width="stretch")
         st.download_button("Download regression result", json_result(result), "autostat-regression.json", "application/json")
 
 
@@ -186,6 +186,6 @@ def render_comparison(frame):
         predictions = st.session_state["comparison_predictions"]
         model = st.selectbox("Inspect holdout predictions", [entry["model"] for entry in result["models"]])
         chart = predictions.sample(min(5000, len(predictions)), random_state=42)
-        st.plotly_chart(_scatter(chart, x="Observed", y=model, title=f"Holdout observations vs predictions · {model}"), width="stretch")
+        plot_chart(_scatter(chart, x="Observed", y=model, title=f"Holdout observations vs predictions · {model}"), width="stretch")
         result_details(display_result(result, digits))
         st.download_button("Download comparison result", json_result(result), "autostat-comparison.json", "application/json")

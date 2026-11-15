@@ -1,7 +1,7 @@
 import pandas as pd
 import plotly.express as px
 import streamlit as st
-from ui.presentation import result_details
+from ui.presentation import result_details, plot_chart
 from modules.unsupervised import explore_structure
 from reporting.formatting import display_table, display_result
 from reporting.results import json_result
@@ -36,9 +36,9 @@ def render_structure(frame):
         figure.update_traces(hovertemplate=f"PC1: %{{x:.{digits}g}}<br>PC2: %{{y:.{digits}g}}<extra></extra>")
         left, right = st.columns(2)
         with left:
-            st.plotly_chart(figure, width="stretch")
+            plot_chart(figure, width="stretch")
         with right:
-            st.plotly_chart(px.bar(pd.DataFrame(result["cluster_sizes"]), x="cluster", y="rows", title="Cluster membership", color_discrete_sequence=["#22D3EE"]), width="stretch")
+            plot_chart(px.bar(pd.DataFrame(result["cluster_sizes"]), x="cluster", y="rows", title="Cluster membership", color_discrete_sequence=["#22D3EE"]), width="stretch")
         for key in ["explained_variance", "component_weights", "cluster_sizes", "cluster_centers"]:
             st.markdown(f"**{key.replace('_', ' ').title()}**")
             st.dataframe(display_table(pd.DataFrame(result[key]), digits), hide_index=True, width="stretch")
