@@ -1,12 +1,16 @@
-"""Column roles are suggestions; original pandas dtypes are preserved."""
+"""Profiles reflect applied types; roles for untyped columns remain suggestions."""
 import pandas as pd
-from pandas.api.types import is_numeric_dtype, is_bool_dtype
+from pandas.api.types import is_numeric_dtype, is_bool_dtype, is_datetime64_any_dtype
 
 
 def column_role(series: pd.Series) -> str:
     values = series.dropna()
     if values.empty:
         return "Empty"
+    if isinstance(series.dtype, pd.CategoricalDtype):
+        return "Categorical"
+    if is_datetime64_any_dtype(series):
+        return "Date"
     if is_bool_dtype(series) or series.nunique() == 2:
         return "Binary"
     if is_numeric_dtype(series):

@@ -56,7 +56,7 @@ def test_bundle_contents_are_real_results():
     frame = demo_data()
     bundle = analysis_bundle(frame, 'demo')
     with zipfile.ZipFile(io.BytesIO(bundle)) as archive:
-        assert len(archive.namelist()) == 5
+        assert len(archive.namelist()) == 6
         assert '181 rows' in archive.read('summary.md').decode()
         profile = pd.read_csv(archive.open('column_profile.csv'))
         assert profile.set_index('Column').loc['sales', 'Missing'] == 3

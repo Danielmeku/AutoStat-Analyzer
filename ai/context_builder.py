@@ -14,6 +14,9 @@ def build_context(frame, analyses, digits=3):
         return format_number(value, digits, pvalue=p)
     add("data_quality", "Dataset overview", f"Active dataset: {quality['rows']} observations and {quality['columns']} variables.")
     add("data_quality", "Missing and repeated data", f"Missing cells: {quality['missing_cells']} ({fmt(quality['missing_percent'])}%). Duplicate rows after first occurrences: {quality['duplicate_rows']}.")
+    factors = [label(column) for column in frame if str(frame[column].dtype) == "category"]
+    if factors:
+        add("data_quality", "Categorical treatment", f"Variables explicitly stored as categorical factors: {', '.join(factors)}. Numeric-looking factor values are category labels, not quantitative magnitudes. Factor levels are not included in this summary.")
     if test := analyses.get("test_result"):
         selection = f"{label(test.get('outcome', test.get('first', test.get('x', ''))))} / {label(test.get('group', test.get('second', test.get('y', ''))))}"
         add("test_result", "Hypothesis test", f"{test['method']} ({selection}): statistic {fmt(test['statistic'])}; p-value {fmt(test['pvalue'], True)}; alpha {fmt(test['alpha'])}; complete observations {test['observations']}; excluded rows {test['excluded_rows']}. {test['conclusion']}. Null: {test['null_hypothesis']} Assumptions: {test['assumptions']}")

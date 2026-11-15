@@ -323,3 +323,58 @@ def test_chat_available_before_an_upload_is_selected(mock_gemini):
     assert app.chat_input
     assert not mock_gemini
     assert 'no dataset' in app.json[0].value.lower()
+
+
+def apply_type(app, column, treatment):
+    next(s for s in app.selectbox if s.label == 'Column to edit').set_value(column)
+    next(s for s in app.selectbox if s.label == 'Treat as').set_value(treatment)
+    next(b for b in app.button if b.label == 'Apply column type').click().run()
+    assert not app.exception
+
+
+def test_factor_assignment_clears_results_and_survives_cleaning():
+    app = AppTest.from_file(Path(__file__).resolve().parents[1] / 'app.py').run()
+    navigate(app, 'Regression')
+    next(b for b in app.button if b.label == 'Fit regression').click().run()
+    navigate(app, 'Export')
+    next(b for b in app.button if b.label == 'Generate PDF reports').click().run()
+    assert 'regression_result' in app.session_state and 'pdf_reports' in app.session_state
+    navigate(app, 'Data review')
+    apply_type(app, 'satisfaction', 'Categorical (factor)')
+    assert isinstance(app.session_state['active'].satisfaction.dtype, pd.CategoricalDtype)
+    assert 'regression_result' not in app.session_state
+    assert 'pdf_reports' not in app.session_state
+    app.checkbox[0].check()
+    app.checkbox[1].check()
+    next(b for b in app.button if b.label == 'Apply cleaning').click().run()
+    assert len(app.session_state['active']) == 177
+    assert isinstance(app.session_state['active'].satisfaction.dtype, pd.CategoricalDtype)
+    navigate(app, 'Explore')
+    assert 'satisfaction' not in next(s for s in app.selectbox if s.label == 'Numeric variable').options
+    assert 'satisfaction' in next(s for s in app.selectbox if s.label == 'Categorical / date variable').options
+    navigate(app, 'Regression')
+    next(s for s in app.multiselect if s.label == 'Predictors (up to 20)').set_value(['marketing_spend', 'satisfaction'])
+    next(b for b in app.button if b.label == 'Fit regression').click().run()
+    assert 'satisfaction' in app.session_state['regression_result']['reference_categories']
+    navigate(app, 'Data review')
+    next(b for b in app.button if b.label == 'Restore original data').click().run()
+    assert len(app.session_state['active']) == 181
+    assert str(app.session_state['active'].satisfaction.dtype) == 'int64'
+    assert app.session_state['column_type_overrides'] == {}
+
+
+def test_type_changes_preserve_applied_cleaning_and_reject_invalid_values():
+    app = AppTest.from_file(Path(__file__).resolve().parents[1] / 'app.py').run()
+    app.checkbox[0].check()
+    app.checkbox[1].check()
+    next(b for b in app.button if b.label == 'Apply cleaning').click().run()
+    apply_type(app, 'satisfaction', 'Categorical (factor)')
+    assert len(app.session_state['active']) == 177
+    before = app.session_state['active'].copy()
+    apply_type(app, 'region', 'Numeric')
+    assert any('Cannot treat region' in error.value for error in app.error)
+    pd.testing.assert_frame_equal(app.session_state['active'], before)
+    assert 'region' not in app.session_state['column_type_overrides']
+    apply_type(app, 'satisfaction', 'Original type')
+    assert len(app.session_state['active']) == 177
+    assert str(app.session_state['active'].satisfaction.dtype) == 'int64'

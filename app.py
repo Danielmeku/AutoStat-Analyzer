@@ -5,7 +5,7 @@ import plotly.express as px
 import streamlit as st
 from modules.data_loader import load_csv, demo_data
 from modules.data_validator import validate_data
-from modules.data_cleaner import clean_data
+from modules.data_types import dataset_signature, prepare_working_copy, preparation_description
 from modules.data_profiler import profile_data
 from modules.exploratory_analysis import numeric_summary, correlation_matrix, outlier_summary
 from reporting.executive_report import executive_report
@@ -13,6 +13,7 @@ from reporting.detailed_report import analysis_bundle
 from reporting.pdf_generator import executive_pdf, detailed_pdf
 from reporting.results import json_result
 from ui.presentation import apply_style, workspace_header, plot_chart
+from ui.data_preparation import render_column_types
 from ui.classification import render_classification
 from ui.unsupervised import render_structure
 from ui.assistant import render_assistant
@@ -57,10 +58,15 @@ fingerprint = hashlib.sha256(raw + delimiter.encode()).hexdigest()
 if st.session_state.get("fingerprint") != fingerprint:
     st.session_state["fingerprint"] = fingerprint
     st.session_state["active"] = original.copy()
+    st.session_state["column_type_overrides"] = {}
+    st.session_state["applied_cleaning"] = {"remove_duplicates": False, "drop_missing": False}
+    for key in list(st.session_state):
+        if key.startswith("column_type_choice_"):
+            st.session_state.pop(key, None)
     st.session_state["preparation"] = "Original data — no cleaning applied"
 frame = st.session_state["active"]
 # Invalidate all computed analyses whenever active data change (including cleaning/reset).
-analysis_fingerprint = hashlib.sha256(pd.util.hash_pandas_object(frame, index=True).values.tobytes() + str(list(frame.columns)).encode()).hexdigest()
+analysis_fingerprint = dataset_signature(frame)
 if st.session_state.get("analysis_fingerprint") != analysis_fingerprint:
     for result_key in ["test_result", "regression_result", "regression_plots", "regression_fit", "regression_new_predictions", "regression_nested_result", "comparison_result", "comparison_predictions", "classification_result", "exploration_result", "exploration_plots", "insight_result", "assistant_messages"]:
         st.session_state.pop(result_key, None)
@@ -101,24 +107,25 @@ if step == "Data review":
     st.dataframe(display_table(profile_data(frame), digits), hide_index=True, width="stretch")
     if quality["constant_columns"]:
         st.warning("Constant or empty columns: " + ", ".join(quality["constant_columns"]))
+    render_column_types(original)
     st.markdown("#### Prepare a working copy")
     options = st.columns(2)
     duplicates = options[0].checkbox("Remove duplicate rows")
     missing = options[1].checkbox("Drop rows containing any missing value")
     proposed = None
     try:
-        proposed = clean_data(original, duplicates, missing)
+        proposed = prepare_working_copy(original, st.session_state.get("column_type_overrides", {}), duplicates, missing)
         st.write(f"Proposed result: {len(proposed):,} rows ({len(original) - len(proposed):,} removed).")
     except ValueError as exc:
         st.warning(str(exc))
     actions = st.columns(2)
     if actions[0].button("Apply cleaning", type="primary", disabled=proposed is None, width="stretch"):
         st.session_state["active"] = proposed
-        st.session_state["preparation"] = f"Working copy · remove duplicates: {duplicates} · drop incomplete rows: {missing}"
+        st.session_state["applied_cleaning"] = {"remove_duplicates": duplicates, "drop_missing": missing}
+        st.session_state["preparation"] = preparation_description(st.session_state.get("column_type_overrides", {}), duplicates, missing)
         st.rerun()
     if actions[1].button("Restore original data", width="stretch"):
-        st.session_state["active"] = original.copy()
-        st.session_state["preparation"] = "Original data — no cleaning applied"
+        st.session_state.pop("fingerprint", None)
         st.rerun()
 
 if step == "Explore":

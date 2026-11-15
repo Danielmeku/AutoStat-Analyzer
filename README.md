@@ -2,6 +2,14 @@
 
 An interactive statistical analysis workspace with a regression specification, diagnostics, remedies and prediction workflow. Built with Python, Streamlit, pandas, Plotly, SciPy, Statsmodels, scikit-learn, and ReportLab. Statistical analyses work without an API key. The optional corner chatbot uses Gemini and requires a configured key and model.
 
+## Change column types
+
+In **Data review → Column types**, select a column and choose its treatment, then press **Apply column type**. For example, set `satisfaction` to **Categorical (factor)** to use its values as category labels in plots, tests and models, rather than continuous numeric quantities. Numeric summaries and correlations then exclude that factor; regression and predictive pipelines encode it categorically.
+
+Available choices are **Original type**, **Categorical (factor)**, **Numeric**, **Text**, **Date/time** and **Boolean**. ISO date/time values normalize to UTC. Boolean conversion accepts true/false and 0/1. Invalid conversions fail without changing the working copy or silently adding missing values. Original uploads remain unchanged. Type assignments are reapplied during cleaning; changing a type preserves already-applied cleaning. Restore a column with **Original type**, or reset everything with **Restore original data**.
+
+Changing a type clears analyses, predictions, saved insights and PDFs that used the old schema. The analysis ZIP includes `column_types.json` with the effective types and factor levels because CSV alone cannot preserve those types. Factor levels are not sent to Gemini.
+
 ## Expanded analysis workflow
 
 The supplied regression lecture notes now guide the analysis process. See [Analysis methods](docs/analysis-methods.md) for the source-to-feature mapping, statistical assumptions and implementation limits.

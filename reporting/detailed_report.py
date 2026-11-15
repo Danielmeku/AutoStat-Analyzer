@@ -1,6 +1,7 @@
 import io
 import zipfile
 from modules.data_profiler import profile_data
+from modules.data_types import column_type_schema
 from modules.exploratory_analysis import numeric_summary, outlier_summary, correlation_matrix
 from reporting.executive_report import executive_report
 
@@ -18,6 +19,7 @@ def analysis_bundle(frame, dataset_name: str, analyses=None, pdfs=None) -> bytes
         archive.writestr("summary.md", summary)
         for key, result in (analyses or {}).items():
             archive.writestr(f"{key}.json", json_result(result))
+        archive.writestr("column_types.json", json_result(column_type_schema(frame)))
         archive.writestr("column_profile.csv", profile_data(frame).to_csv(index=False))
         archive.writestr("numeric_summary.csv", numeric_summary(frame).to_csv())
         archive.writestr("iqr_flags.csv", outlier_summary(frame).to_csv(index=False))
