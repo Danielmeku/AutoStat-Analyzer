@@ -21,22 +21,23 @@ def render_regression_workbench(frame):
     if not numbers or len(frame.columns) < 2:
         st.info('Need a numeric target and at least one predictor.')
         return
-    target = st.selectbox('Regression target', numbers, index=min(1, len(numbers)-1))
+    controls = st.columns([1, 2])
+    target = controls[0].selectbox('Regression target', numbers, index=min(1, len(numbers)-1))
     choices = [c for c in [*numbers, *frame.select_dtypes(exclude='number').columns] if c != target]
-    predictors = st.multiselect('Predictors (up to 20)', choices, default=choices[:1])
+    predictors = controls[1].multiselect('Predictors (up to 20)', choices, default=choices[:1])
     with st.expander('Model specification'):
-        left, right = st.columns(2)
-        with left:
-            covariance = st.selectbox('Coefficient inference', ['Classical', 'HC3'])
-            response = st.selectbox('Response transformation', ['None', 'Log', 'Square root', 'Box-Cox'])
-            predictor_transform = st.selectbox('Numeric predictor transformation', ['None', 'Log', 'Square root', 'Reciprocal'])
-        with right:
-            degree = st.selectbox('Model terms', [1, 2], format_func=lambda d: 'Linear' if d == 1 else 'Quadratic (numeric terms)')
-            interactions = st.checkbox('Include pairwise interactions')
-            weight = st.selectbox('Inverse-variance weight column', ['None', *[c for c in numbers if c not in [target, *predictors]]])
-            extended = st.checkbox('Extended diagnostic tests')
-            variance_order = st.selectbox('Variance ordering predictor', ['None', *[c for c in predictors if c in numbers]])
-            confidence = st.selectbox('Confidence level', [0.90, 0.95, 0.99], index=1, format_func=lambda x: f'{x:.0%}')
+        top = st.columns(3)
+        covariance = top[0].selectbox('Coefficient inference', ['Classical', 'HC3'])
+        response = top[1].selectbox('Response transformation', ['None', 'Log', 'Square root', 'Box-Cox'])
+        predictor_transform = top[2].selectbox('Numeric predictor transformation', ['None', 'Log', 'Square root', 'Reciprocal'])
+        middle = st.columns(3)
+        degree = middle[0].selectbox('Model terms', [1, 2], format_func=lambda d: 'Linear' if d == 1 else 'Quadratic (numeric terms)')
+        weight = middle[1].selectbox('Inverse-variance weight column', ['None', *[c for c in numbers if c not in [target, *predictors]]])
+        confidence = middle[2].selectbox('Confidence level', [0.90, 0.95, 0.99], index=1, format_func=lambda x: f'{x:.0%}')
+        bottom = st.columns(3, vertical_alignment='bottom')
+        variance_order = bottom[0].selectbox('Variance ordering predictor', ['None', *[c for c in predictors if c in numbers]])
+        interactions = bottom[1].checkbox('Include pairwise interactions')
+        extended = bottom[2].checkbox('Extended diagnostic tests')
     with st.popover('Model help'):
         st.write('Categorical predictors use reference coding; the reference is listed in results. Quadratic terms and pairwise interactions retain main effects. Complete-case rows are used jointly.')
         st.write('HC3 adjusts coefficient uncertainty for heteroscedasticity; it does not fix dependence, bias, the mean model, or individual prediction intervals. WLS requires positive, externally justified inverse-variance weights.')

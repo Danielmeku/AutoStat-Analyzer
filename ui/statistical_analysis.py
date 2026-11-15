@@ -22,8 +22,9 @@ def render_tests(frame):
     st.subheader("Statistical tests")
     numbers = list(frame.select_dtypes(include="number"))
     columns = list(frame.columns)
-    method = st.selectbox("Test", ["Welch two-sample t-test", "Correlation test", "Chi-square independence", "Paired t-test", "Wilcoxon signed-rank", "One-way ANOVA", "Kruskal–Wallis", "Mann–Whitney U", "Fisher exact (2×2)", "Partial correlation", "Variance equality"])
-    with st.popover("About this test"):
+    main_controls = st.columns([2, 1, 1], vertical_alignment="bottom")
+    method = main_controls[0].selectbox("Test", ["Welch two-sample t-test", "Correlation test", "Chi-square independence", "Paired t-test", "Wilcoxon signed-rank", "One-way ANOVA", "Kruskal–Wallis", "Mann–Whitney U", "Fisher exact (2×2)", "Partial correlation", "Variance equality"])
+    with main_controls[2].popover("About this test"):
         descriptions = {
             "Welch two-sample t-test": "Compare the means of two independent groups. Allows unequal variances. Check independence and the shape of small samples.",
             "Variance equality": "Compare population variances across independent groups. Median-centered Levene is more robust to non-normality; Bartlett assumes normal group distributions.",
@@ -41,64 +42,71 @@ def render_tests(frame):
         st.markdown("**Reading the numbers**")
         st.write("The statistic measures departure from the null hypothesis on the test’s own scale. The p-value measures how incompatible the data are with that null model; it is not the probability the hypothesis is true. A p-value below your chosen significance level is evidence against the null, subject to the assumptions.")
         st.write("Effect sizes describe magnitude; confidence intervals describe uncertainty under the model. Review excluded rows and assumptions. A nonsignificant result does not prove no difference. Multiple unadjusted tests increase false positives.")
-    alpha = st.select_slider("Significance level", options=[0.01, 0.05, 0.10], value=0.05)
+    alpha = main_controls[1].select_slider("Significance level", options=[0.01, 0.05, 0.10], value=0.05)
     operation = None
     if method in {"Welch two-sample t-test", "Mann–Whitney U"}:
         groups = [c for c in columns if 2 <= frame[c].nunique() <= 30]
         if numbers and groups:
-            value = st.selectbox("Outcome", numbers)
-            group = st.selectbox("Grouping column", groups)
+            options = st.columns(4)
+            value = options[0].selectbox("Outcome", numbers)
+            group = options[1].selectbox("Grouping column", groups)
             levels = list(frame[group].dropna().unique())
-            first = st.selectbox("First group", levels)
-            second = st.selectbox("Second group", levels, index=1)
+            first = options[2].selectbox("First group", levels)
+            second = options[3].selectbox("Second group", levels, index=1)
             operation = lambda: (welch_test if method == "Welch two-sample t-test" else mann_whitney_test)(frame, value, group, first, second, alpha)
         else:
             st.info("Need a numeric outcome and a grouping column with 2–30 levels.")
     elif method == "Variance equality":
         groups = [c for c in columns if 2 <= frame[c].nunique() <= 10]
         if numbers and groups:
-            value = st.selectbox("Variance outcome", numbers)
-            group = st.selectbox("Variance grouping column", groups)
-            variance_method = st.selectbox("Variance test method", ["levene", "bartlett"], format_func=lambda v: "Levene (median-centered)" if v == "levene" else "Bartlett")
+            options = st.columns(3)
+            value = options[0].selectbox("Variance outcome", numbers)
+            group = options[1].selectbox("Variance grouping column", groups)
+            variance_method = options[2].selectbox("Variance test method", ["levene", "bartlett"], format_func=lambda v: "Levene (median-centered)" if v == "levene" else "Bartlett")
             operation = lambda: variance_equality_test(frame, value, group, variance_method, alpha)
         else:
             st.info("Need a numeric outcome and 2–10 groups.")
     elif method in {"One-way ANOVA", "Kruskal–Wallis"}:
         groups = [c for c in columns if 2 <= frame[c].nunique() <= 10]
         if numbers and groups:
-            value = st.selectbox("Group-test outcome", numbers)
-            group = st.selectbox("Group-test grouping column", groups)
+            options = st.columns(2)
+            value = options[0].selectbox("Group-test outcome", numbers)
+            group = options[1].selectbox("Group-test grouping column", groups)
             operation = lambda: group_test(frame, value, group, "anova" if method == "One-way ANOVA" else "kruskal", alpha)
         else:
             st.info("Need a numeric outcome and a grouping column with 2–10 levels.")
     elif method in {"Paired t-test", "Wilcoxon signed-rank"}:
         if len(numbers) >= 2:
-            first = st.selectbox("First paired measurement", numbers)
-            second = st.selectbox("Second paired measurement", numbers, index=1)
+            options = st.columns(2)
+            first = options[0].selectbox("First paired measurement", numbers)
+            second = options[1].selectbox("Second paired measurement", numbers, index=1)
             operation = lambda: paired_test(frame, first, second, "t" if method == "Paired t-test" else "wilcoxon", alpha)
         else:
             st.info("Need two numeric paired measurement columns.")
     elif method == "Partial correlation":
         if len(numbers) >= 3:
-            x = st.selectbox("First adjusted variable", numbers)
-            y = st.selectbox("Second adjusted variable", numbers, index=1)
-            controls = st.multiselect("Control variables", [c for c in numbers if c not in {x, y}])
+            options = st.columns(3)
+            x = options[0].selectbox("First adjusted variable", numbers)
+            y = options[1].selectbox("Second adjusted variable", numbers, index=1)
+            controls = options[2].multiselect("Control variables", [c for c in numbers if c not in {x, y}])
             operation = lambda: partial_correlation_test(frame, x, y, controls, alpha)
         else:
             st.info("Need at least three numeric columns for partial correlation.")
     elif method == "Correlation test":
         if len(numbers) >= 2:
-            x = st.selectbox("First numeric variable", numbers)
-            y = st.selectbox("Second numeric variable", numbers, index=1)
-            correlation = st.selectbox("Test correlation method", ["pearson", "spearman"])
+            options = st.columns(3)
+            x = options[0].selectbox("First numeric variable", numbers)
+            y = options[1].selectbox("Second numeric variable", numbers, index=1)
+            correlation = options[2].selectbox("Test correlation method", ["pearson", "spearman"])
             operation = lambda: correlation_test(frame, x, y, correlation, alpha)
         else:
             st.info("Need at least two numeric variables.")
     else:
         groups = [c for c in columns if 2 <= frame[c].nunique() <= 30]
         if len(groups) >= 2:
-            x = st.selectbox("First categorical variable", groups)
-            y = st.selectbox("Second categorical variable", groups, index=1)
+            options = st.columns(2)
+            x = options[0].selectbox("First categorical variable", groups)
+            y = options[1].selectbox("Second categorical variable", groups, index=1)
             operation = lambda: (fisher_test if method == "Fisher exact (2×2)" else chi_square_test)(frame, x, y, alpha)
         else:
             st.info("Need at least two categorical variables with 2–30 levels.")
@@ -137,14 +145,16 @@ def render_comparison(frame):
     if not numbers or len(frame.columns) < 2:
         st.info("Need a numeric target and at least one other predictor.")
         return
-    target = st.selectbox("Prediction target", numbers, index=min(1, len(numbers)-1))
+    controls = st.columns([1.2, 1.8, 1, 1.3])
+    target = controls[0].selectbox("Prediction target", numbers, index=min(1, len(numbers)-1))
     choices = [c for c in [*numbers, *frame.select_dtypes(exclude="number").columns] if c != target]
-    predictors = st.multiselect("Prediction features", choices, default=choices[:1])
-    fraction = st.selectbox("Holdout fraction", [0.2, 0.3], format_func=lambda v: f"{v:.0%}")
-    cv_folds = st.selectbox("Regression cross-validation", [0, 3, 5], format_func=lambda v: "Off" if v == 0 else f"{v} folds (training only)")
+    predictors = controls[1].multiselect("Prediction features", choices, default=choices[:1])
+    fraction = controls[2].selectbox("Holdout fraction", [0.2, 0.3], format_func=lambda v: f"{v:.0%}")
+    cv_folds = controls[3].selectbox("Regression cross-validation", [0, 3, 5], format_func=lambda v: "Off" if v == 0 else f"{v} folds (training only)")
     with st.expander("Regularized models"):
-        regularization = st.multiselect("Additional models", ["Ridge", "Lasso"])
-        penalty = st.number_input("Regularization strength", min_value=0.0001, value=1.0, format="%.4f")
+        extras = st.columns([2, 1])
+        regularization = extras[0].multiselect("Additional models", ["Ridge", "Lasso"])
+        penalty = extras[1].number_input("Regularization strength", min_value=0.0001, value=1.0, format="%.4f")
     if st.button("Compare models", type="primary"):
         for key in ["comparison_result", "comparison_predictions"]:
             st.session_state.pop(key, None)

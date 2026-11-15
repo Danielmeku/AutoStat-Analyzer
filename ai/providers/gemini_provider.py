@@ -22,14 +22,14 @@ class GeminiProvider:
                                      headers={"x-goog-api-key": self._api_key}, json=body,
                                      timeout=(5, 45), allow_redirects=False)
         except requests.RequestException:
-            raise ValueError("Could not reach Gemini. Check network access and try again, or use the offline guide.") from None
+            raise ValueError("Could not reach Gemini. Check network access and try again.") from None
         if response.status_code != 200:
             messages = {400: "Gemini rejected the request. Check model availability and configuration.",
                         401: "Gemini authentication failed. Check the configured API key.",
                         403: "Gemini access was denied. Check API permissions, regional access and network policy.",
                         404: "The configured Gemini model was not found. Set GEMINI_MODEL to an available model.",
-                        429: "Gemini quota or rate limit reached. Try later or use the offline guide."}
-            raise ValueError(messages.get(response.status_code, "Gemini did not complete the request. Try later or use the offline guide."))
+                        429: "Gemini quota or rate limit reached. Try later."}
+            raise ValueError(messages.get(response.status_code, "Gemini did not complete the request. Try later."))
         try:
             parts = response.json()['candidates'][0]['content']['parts']
             if not isinstance(parts, list) or any(not isinstance(part, dict) for part in parts):
@@ -39,4 +39,4 @@ class GeminiProvider:
                 raise ValueError
             return json.loads(text)
         except (KeyError, IndexError, TypeError, ValueError):
-            raise ValueError("Gemini returned no usable structured explanation (possibly blocked or truncated). Try again or use the offline guide.") from None
+            raise ValueError("Gemini returned no usable structured explanation (possibly blocked or truncated). Try again.") from None

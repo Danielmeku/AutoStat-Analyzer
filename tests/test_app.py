@@ -136,7 +136,7 @@ def test_mixed_predictor_cross_validation_ui():
     assert app.session_state['pdf_reports']['detailed.pdf'].startswith(b'%PDF-')
 
 
-def test_new_tests_structure_offline_insights_and_chat():
+def test_new_tests_structure_gemini_insights_and_chat(mock_gemini):
     app = AppTest.from_file(Path(__file__).resolve().parents[1] / 'app.py', default_timeout=60).run()
     navigate(app, 'Statistical tests')
     next(s for s in app.selectbox if s.label == 'Test').set_value('One-way ANOVA').run()
@@ -148,14 +148,13 @@ def test_new_tests_structure_offline_insights_and_chat():
     next(b for b in app.button if b.label == 'Explore structure').click().run()
     assert not app.exception
     assert app.session_state['exploration_result']['clusters'] == 3
-    navigate(app, 'Assistant & insights')
+    next(b for b in app.button if b.label == 'Chat with Gemini').click().run()
     next(b for b in app.button if b.label == 'Generate insights').click().run()
     assert not app.exception
-    assert app.session_state['insight_result']['provider'] == 'Offline guide'
-    next(t for t in app.text_input if t.label == 'Your statistical question').set_value('Explain PCA')
-    next(b for b in app.button if b.label == 'Ask assistant').click().run()
+    assert app.session_state['insight_result']['provider'] == 'Gemini'
+    app.chat_input[0].set_value('Explain PCA').run()
     assert not app.exception
-    assert app.session_state['assistant_messages'][-1]['provider'] == 'Offline guide'
+    assert app.session_state['assistant_messages'][-1]['provider'] == 'Gemini'
     navigate(app, 'Export')
     next(b for b in app.button if b.label == 'Generate PDF reports').click().run()
     assert not app.exception
@@ -183,9 +182,10 @@ def test_gemini_sends_only_on_explicit_action(monkeypatch):
         return Response()
     monkeypatch.setattr(requests, 'post', post)
     app = AppTest.from_file(Path(__file__).resolve().parents[1] / 'app.py', default_timeout=60).run()
-    navigate(app, 'Assistant & insights')
-    next(r for r in app.radio if r.label == 'Assistant mode').set_value('Gemini').run()
+    next(b for b in app.button if b.label == 'Chat with Gemini').click().run()
     assert not calls
+    assert not any(r.label == 'Assistant mode' for r in app.radio)
+    assert 'Assistant & insights' not in next(r for r in app.radio if r.label == 'Analysis workflow').options
     assert not next(b for b in app.button if b.label == 'Generate insights').disabled
     assert not any(c.label.startswith('I approve sending') for c in app.checkbox)
     next(b for b in app.button if b.label == 'Generate insights').click().run()
@@ -202,8 +202,7 @@ def test_unconfigured_gemini_has_actionable_message(monkeypatch):
     monkeypatch.delenv('GEMINI_API_KEY', raising=False)
     monkeypatch.delenv('GEMINI_MODEL', raising=False)
     app = AppTest.from_file(Path(__file__).resolve().parents[1] / 'app.py', default_timeout=60).run()
-    navigate(app, 'Assistant & insights')
-    next(r for r in app.radio if r.label == 'Assistant mode').set_value('Gemini').run()
+    next(b for b in app.button if b.label == 'Chat with Gemini').click().run()
     assert not app.exception
     assert any('GEMINI_API_KEY' in item.value for item in app.info)
     assert next(b for b in app.button if b.label == 'Generate insights').disabled
@@ -261,3 +260,66 @@ def test_regularized_models_ui():
     next(b for b in app.button if b.label == 'Compare models').click().run()
     assert not app.exception
     assert len(app.session_state['comparison_result']['models']) == 5
+
+
+def test_floating_chat_closes_reopens_and_survives_navigation(mock_gemini):
+    app = AppTest.from_file(Path(__file__).resolve().parents[1] / 'app.py').run()
+    assert not app.chat_input
+    assert not mock_gemini
+    next(b for b in app.button if b.label == 'Chat with Gemini').click().run()
+    assert not app.exception
+    assert not mock_gemini
+    app.chat_input[0].set_value('Explain my results').run()
+    assert not app.exception
+    assert len(mock_gemini) == 1
+    assert len(app.session_state['assistant_messages']) == 1
+    next(b for b in app.button if b.label == 'Close chat').click().run()
+    assert not app.chat_input
+    next(b for b in app.button if b.label == 'Chat with Gemini').click().run()
+    assert len(app.session_state['assistant_messages']) == 1
+    navigate(app, 'Classification')
+    assert len(app.session_state['assistant_messages']) == 1
+    assert len(mock_gemini) == 1
+    next(b for b in app.button if b.label == 'Clear chat').click().run()
+    assert 'assistant_messages' not in app.session_state
+
+
+def test_chat_quick_reply_and_failed_request(mock_gemini, monkeypatch):
+    import requests
+    app = AppTest.from_file(Path(__file__).resolve().parents[1] / 'app.py').run()
+    next(b for b in app.button if b.label == 'Chat with Gemini').click().run()
+    next(b for b in app.button if b.label == 'Explain results').click().run()
+    assert not app.exception
+    assert len(mock_gemini) == 1
+    def fail(*args, **kwargs):
+        raise requests.Timeout('PRIVATE-ERROR')
+    monkeypatch.setattr(requests, 'post', fail)
+    app.chat_input[0].set_value('Another question').run()
+    assert not app.exception
+    assert any('Could not reach Gemini' in error.value for error in app.error)
+    assert all('PRIVATE-ERROR' not in error.value for error in app.error)
+
+
+def test_saved_corner_insights_refresh_export_buttons(mock_gemini):
+    app = AppTest.from_file(Path(__file__).resolve().parents[1] / 'app.py').run()
+    navigate(app, 'Export')
+    next(b for b in app.button if b.label == 'Generate PDF reports').click().run()
+    assert 'pdf_reports' in app.session_state
+    next(b for b in app.button if b.label == 'Chat with Gemini').click().run()
+    assert not mock_gemini
+    next(b for b in app.button if b.label == 'Generate insights').click().run()
+    assert not app.exception
+    assert len(mock_gemini) == 1
+    assert app.session_state['insight_result']['provider'] == 'Gemini'
+    assert 'pdf_reports' not in app.session_state
+    assert not any(b.proto.label == 'Download executive PDF' for b in app.get('download_button'))
+
+
+def test_chat_available_before_an_upload_is_selected(mock_gemini):
+    app = AppTest.from_file(Path(__file__).resolve().parents[1] / 'app.py').run()
+    next(r for r in app.radio if r.label == 'Dataset source').set_value('Upload CSV').run()
+    next(b for b in app.button if b.label == 'Chat with Gemini').click().run()
+    assert not app.exception
+    assert app.chat_input
+    assert not mock_gemini
+    assert 'no dataset' in app.json[0].value.lower()

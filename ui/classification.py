@@ -15,14 +15,15 @@ def render_classification(frame):
     if not targets:
         st.info("No classification targets with 2–10 classes were detected.")
         return
-    target = st.selectbox("Classification target", targets)
+    controls = st.columns([1.2, 1.8, 1, 1.3])
+    target = controls[0].selectbox("Classification target", targets)
     choices = [c for c in [*frame.select_dtypes(include="number").columns, *frame.select_dtypes(exclude="number").columns] if c != target]
     if not choices:
         st.info("Need at least one predictor distinct from the target.")
         return
-    predictors = st.multiselect("Classification features", choices, default=choices[:1])
-    fraction = st.selectbox("Classification holdout", [0.2, 0.3], format_func=lambda v: f"{v:.0%}")
-    cv_folds = st.selectbox("Classification cross-validation", [0, 3, 5], format_func=lambda v: "Off" if v == 0 else f"{v} folds (training only)")
+    predictors = controls[1].multiselect("Classification features", choices, default=choices[:1])
+    fraction = controls[2].selectbox("Classification holdout", [0.2, 0.3], format_func=lambda v: f"{v:.0%}")
+    cv_folds = controls[3].selectbox("Classification cross-validation", [0, 3, 5], format_func=lambda v: "Off" if v == 0 else f"{v} folds (training only)")
     if st.button("Compare classifiers", type="primary"):
         st.session_state.pop("classification_result", None)
         try:

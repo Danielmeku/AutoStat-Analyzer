@@ -1,6 +1,6 @@
 # AutoStat Analyzer
 
-An interactive statistical analysis workspace with a regression specification, diagnostics, remedies and prediction workflow. Built with Python, Streamlit, pandas, Plotly, SciPy, Statsmodels, scikit-learn, and ReportLab. All analyses and the offline guide work without an API key; live Gemini is optional.
+An interactive statistical analysis workspace with a regression specification, diagnostics, remedies and prediction workflow. Built with Python, Streamlit, pandas, Plotly, SciPy, Statsmodels, scikit-learn, and ReportLab. Statistical analyses work without an API key. The optional corner chatbot uses Gemini and requires a configured key and model.
 
 ## Expanded analysis workflow
 
@@ -43,8 +43,8 @@ Open the Streamlit address printed by the terminal. In GitHub Codespaces, use th
 13. Optionally choose **3 or 5 folds** in either comparison tab before comparing. Cross-validation uses the training partition only. Inspect mean scores, sample standard deviations and per-fold scores; final holdout scores remain separate. Cross-validation is off by default and adds training time.
 14. Try **Paired t-test**, **Wilcoxon signed-rank**, **Mann–Whitney U**, **One-way ANOVA**, **Kruskal–Wallis**, or **Fisher exact** in Statistical tests; review the design assumptions before running them.
 15. In **PCA & clusters**, select 2–20 numeric features and a cluster count, then press **Explore structure**. Inspect standardized PCA components, variance explained, cluster sizes/centers and silhouette.
-16. In **Assistant & insights**, use **Offline guide → Generate insights**, or ask a question such as “Explain the p-value” or “What does PCA mean?” This guide uses templates and calculated evidence, not a language model. Saved insights join JSON/ZIP and detailed PDFs; chat history stays in the session.
-17. To use a language model, configure Gemini as described below, review the summary payload, then press Generate insights or Ask assistant to send it and your current question. No raw rows or previous chat are forwarded.
+16. Press the chat icon in the bottom-right corner of any analysis page to open **Gemini assistant**. Ask about completed results or use a quick prompt. **Generate insights** saves commentary to JSON/ZIP and detailed PDFs; chat history stays in the session. Close/reopen the panel or switch pages without losing the current conversation. Changing active data, completed analysis evidence or precision clears stale commentary.
+17. To use a language model, configure Gemini as described below, review the summary payload, then send a chat message, select a quick prompt, or press Generate insights. No raw rows or previous chat are forwarded.
 18. Upload your own UTF-8 CSV using comma, semicolon, or tab separation.
 
 Uploads are limited to 10 MB, 100,000 observations and 200 columns. Headers must be unique and nonempty; malformed rows and numeric infinity are rejected. No implicit numeric conversion, imputation, encoding, or row deletion is performed. Suggested column roles do not alter data types. Numeric binary columns remain available for descriptive numeric exploration.
@@ -53,7 +53,7 @@ Uploads are limited to 10 MB, 100,000 observations and 200 columns. Headers must
 
 Summaries use all available rows; charts reproducibly sample at most 5,000 rows. Standard deviation and variance use sample definitions. Correlations use pairwise complete rows with at least three pairs; constant columns return undefined correlations. Different pairs can use different observations. IQR flags identify candidates for review, not errors. Associations are descriptive and do not establish causation.
 
-This release implements foundation, data review/preparation, EDA, statistical tests, OLS regression with diagnostics, held-out regression and classification model comparison, PCA/K-means exploration, grounded offline insights/chat, optional Gemini, executive/detailed PDF reports, and analysis exports. **Still outside this release:** inferential logistic coefficients, automated post-hoc comparisons/multiple-testing correction, time-series/group-aware validation, hyperparameter tuning, hierarchical clustering, production accounts/storage and deployment. Gemini sends evidence only on explicit action buttons; live credentialed validation depends on your key/model access.
+This release implements foundation, data review/preparation, EDA, statistical tests, OLS regression with diagnostics, held-out regression and classification model comparison, PCA/K-means exploration, optional Gemini insights/chat, executive/detailed PDF reports, and analysis exports. **Still outside this release:** inferential logistic coefficients, automated post-hoc comparisons/multiple-testing correction, time-series/group-aware validation, hyperparameter tuning, hierarchical clustering, production accounts/storage and deployment. Gemini sends evidence only on explicit action buttons; live credentialed validation depends on your key/model access.
 
 ### Tests and models
 
@@ -102,7 +102,7 @@ Silhouette uses at most a reproducible 2,000-row sample and is unavailable if th
 
 `ai/context_builder.py` explicitly whitelists computed aggregate evidence. It never serializes arbitrary session state, raw rows, category values, row predictions, residual arrays, PCA coordinates or past chat. Evidence cards include dataset-quality counts, completed test results/assumptions, OLS coefficients/diagnostics, model/validation scores and PCA/cluster summaries. Names are shortened in the assistant context; computed numbers use selected display precision. Aggregates and variable names can still be sensitive, so review the payload.
 
-The provider-independent assistant supports a transparent **Offline guide** and optional **Gemini**. Offline replies use topic templates plus evidence cards; it is not a language model and does not calculate arbitrary new analyses. Gemini receives the reviewed context and current question only, when you press Generate insights or Ask assistant. Consent and assistant state reset when active data, evidence or display precision changes. No request is made just by selecting Gemini. Chat retains up to ten exchanges in session memory and is excluded from reports. Saved insight commentary includes its provider and cited evidence in JSON/ZIP and detailed PDFs.
+The Gemini-only assistant opens from a floating chat icon at the bottom-right of the app. Opening or closing it, navigating pages and reviewing the shared summary do not call the API. Sending a question, choosing a quick prompt, or pressing Generate insights sends the aggregate context and current question only. No raw rows, encoded category values, observation-level predictions, residual arrays, or previous chat are forwarded. Missing credentials disable chat actions without blocking statistical analysis. The panel supports close/reopen, quick prompts, evidence expanders and clearing conversation history. Up to ten exchanges remain in session memory and are excluded from reports. Saved insight commentary includes its provider and cited evidence in JSON/ZIP and detailed PDFs.
 
 Provider prose must be qualitative: numeric facts are rendered from computed cards. Validation rejects unknown evidence references, inserted digits, malformed responses and selected unsupported certainty/causal phrases. This is a bounded reference/format check, **not semantic fact-checking**: AI interpretations can still be wrong and require review. Gemini output is never executed and cannot run tools or calculations. Dataset labels/questions are treated as untrusted prompt data. Network and authentication/quota/blocked-response errors are shown without exposing keys or remote error bodies. TLS verification stays enabled, requests use timeouts and redirects are disabled. There is no automatic billable retry loop.
 
@@ -111,10 +111,10 @@ Provider prose must be qualitative: numeric facts are rendered from computed car
 1. Add `GEMINI_API_KEY` securely using GitHub Codespaces secrets (grant this repository access) or your hosting platform’s secret manager. Never paste a real key into source, issues or chat.
 2. Set `GEMINI_MODEL` to a current model identifier your account can use with the `generateContent` API and JSON output. This app intentionally does not guess an available model. Use an identifier, not a URL/path.
 3. Restart/reconnect the Codespace so variables are injected, activate the virtual environment and restart Streamlit. Alternatively, Streamlit deployment secrets can supply the same two names; `.streamlit/secrets.toml` is ignored by Git.
-4. If outbound networking is restricted, allow `generativelanguage.googleapis.com` over HTTPS. No data is sent until you select Gemini, approve the displayed summary and press Generate insights or Ask assistant.
+4. If outbound networking is restricted, allow `generativelanguage.googleapis.com` over HTTPS. No data is sent until you send a message, select a quick prompt, or press Generate insights in the corner chat panel.
 5. Test a nonsensitive demo summary first. Availability, quotas and cost depend on your account/model; free access is not assumed.
 
-The integration uses Gemini’s REST `v1beta/models/{model}:generateContent` endpoint. Automated tests mock provider responses to cover request shape, consent, validation, timeouts and common HTTP errors. **No live Gemini call has been validated in this development environment:** no key/model is configured, and the Google API documentation URL returned HTTP 403 from this environment. The complete offline workflow is tested.
+The integration uses Gemini’s REST `v1beta/models/{model}:generateContent` endpoint. Automated tests mock provider responses to cover request shape, consent, validation, timeouts and common HTTP errors. **No live Gemini call has been validated in this development environment:** no key/model is configured, and the Google API documentation URL returned HTTP 403 from this environment. The statistical workflow and mocked Gemini interactions are tested.
 
 ### PDF reports
 
@@ -124,7 +124,7 @@ Both use your selected 2 or 3 significant figures, including scientific p-values
 
 ## Privacy
 
-Uploaded data stays in the Streamlit server session's memory; the application does not persist it to disk. The offline guide makes no external requests. Optional Gemini sends the explicitly approved aggregate summary and current question to Google; it does not receive raw rows or previous chat. Your external provider may have its own retention policies. Downloads may contain sensitive information. Resetting the working copy restores the original data; remove the uploaded file from its picker or close the session to release it. Infrastructure may have its own retention behavior. For sensitive datasets, use trusted/private hosting. Never commit datasets or API keys. CSV exports preserve user text; treat untrusted CSVs carefully in spreadsheet applications.
+Uploaded data stays in the Streamlit server session's memory; the application does not persist it to disk. Optional Gemini sends the explicitly approved aggregate summary and current question to Google; it does not receive raw rows or previous chat. Your external provider may have its own retention policies. Downloads may contain sensitive information. Resetting the working copy restores the original data; remove the uploaded file from its picker or close the session to release it. Infrastructure may have its own retention behavior. For sensitive datasets, use trusted/private hosting. Never commit datasets or API keys. CSV exports preserve user text; treat untrusted CSVs carefully in spreadsheet applications.
 
 ## Tests
 
@@ -132,7 +132,7 @@ Uploaded data stays in the Streamlit server session's memory; the application do
 python -m pytest -q
 ```
 
-Tests cover CSV ingestion/rejection, mixed-type profiling, known statistical results, non-destructive cleaning, export contents, statistical reference values, regression recovery and degeneracy checks, analysis export contents, train-only imputation, reproducible holdout predictions, significant-figure formatting, PDF parsing/content, embedded fonts, one-page executive layout and detailed pagination, report invalidation, stratified classification/reference metrics, train-only scaling, mixed-feature encoding, unseen categories, train-only cross-validation fits and fold-score summaries, numeric/multiclass labels, extended statistical reference tests, PCA/clustering reproducibility, aggregate-only AI context, offline chat, Gemini request/error mocks, evidence invalidation, and Streamlit end-to-end user journeys. GitHub Actions runs the suite on Python 3.12.
+Tests cover CSV ingestion/rejection, mixed-type profiling, known statistical results, non-destructive cleaning, export contents, statistical reference values, regression recovery and degeneracy checks, analysis export contents, train-only imputation, reproducible holdout predictions, significant-figure formatting, PDF parsing/content, embedded fonts, one-page executive layout and detailed pagination, report invalidation, stratified classification/reference metrics, train-only scaling, mixed-feature encoding, unseen categories, train-only cross-validation fits and fold-score summaries, numeric/multiclass labels, extended statistical reference tests, PCA/clustering reproducibility, aggregate-only AI context, Gemini request/error mocks, evidence invalidation, and Streamlit end-to-end user journeys. GitHub Actions runs the suite on Python 3.12.
 
 ## Architecture and next steps
 
@@ -142,4 +142,4 @@ Tests cover CSV ingestion/rejection, mixed-type profiling, known statistical res
 - `ui/`: statistical analysis controls and result displays.
 - `app.py`: UI orchestration and per-session working copy.
 
-Next: live Gemini validation with your configured credentials; broader inference and validation designs; deployment hardening. No key is needed for the offline assistant or statistical workflows.
+Next: live Gemini validation with your configured credentials; broader inference and validation designs; deployment hardening. No key is needed for statistical workflows.

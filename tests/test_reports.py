@@ -69,7 +69,7 @@ def test_reports_handle_categorical_empty_long_labels_and_pagination():
             assert len(document.pages) > 1
 
 
-def test_classification_in_all_analysis_pdfs_and_ten_class_tables():
+def test_classification_in_all_analysis_pdfs_and_ten_class_tables(evidence_provider):
     from modules.classification import compare_classifiers
     frame = demo_data()
     regression, _ = fit_regression(frame, 'sales', ['marketing_spend'])
@@ -81,9 +81,8 @@ def test_classification_in_all_analysis_pdfs_and_ten_class_tables():
     from modules.unsupervised import explore_structure
     from ai.context_builder import build_context
     from ai.chatbot import insight_record
-    from ai.providers.offline_provider import OfflineProvider
     analyses['exploration_result'], _ = explore_structure(frame, ['marketing_spend', 'sales'])
-    analyses['insight_result'] = insight_record(OfflineProvider(), 'Offline guide', build_context(frame, analyses))
+    analyses['insight_result'] = insight_record(evidence_provider, 'Gemini', build_context(frame, analyses))
     document, text = _read(executive_pdf(frame, 'Synthetic sales', analyses))
     assert len(document.pages) == 1
     assert 'macro-F1' in text
@@ -97,22 +96,21 @@ def test_classification_in_all_analysis_pdfs_and_ten_class_tables():
     assert 'C10' in text
 
 
-def test_structure_and_labelled_assistant_commentary_in_exports():
+def test_structure_and_labelled_assistant_commentary_in_exports(evidence_provider):
     from modules.unsupervised import explore_structure
     from ai.context_builder import build_context
     from ai.chatbot import insight_record
-    from ai.providers.offline_provider import OfflineProvider
     frame = demo_data()
     exploration, _ = explore_structure(frame, ['marketing_spend', 'sales'])
     analyses = {'exploration_result': exploration}
-    analyses['insight_result'] = insight_record(OfflineProvider(), 'Offline guide', build_context(frame, analyses))
+    analyses['insight_result'] = insight_record(evidence_provider, 'Gemini', build_context(frame, analyses))
     document, text = _read(executive_pdf(frame, 'Structure exploration', analyses))
     assert len(document.pages) == 1
     assert 'Structure exploration' in text
     _, text = _read(detailed_pdf(frame, 'Structure exploration', analyses))
     normalized = ' '.join(text.split())
     assert 'PCA and K-means structure exploration' in normalized
-    assert 'Assistant commentary (Offline guide)' in normalized
+    assert 'Assistant commentary (Gemini)' in normalized
     with zipfile.ZipFile(io.BytesIO(analysis_bundle(frame, 'Structure', analyses))) as bundle:
         assert 'insight_result.json' in bundle.namelist()
         assert 'exploration_result.json' in bundle.namelist()

@@ -14,8 +14,9 @@ def render_structure(frame):
     if len(numbers) < 2:
         st.info("Need at least two numeric features for PCA and K-means.")
         return
-    features = st.multiselect("Structure features", numbers, default=numbers[:2])
-    clusters = st.selectbox("Number of clusters", list(range(2, 9)), index=1)
+    controls = st.columns([2, 1])
+    features = controls[0].multiselect("Structure features", numbers, default=numbers[:2])
+    clusters = controls[1].selectbox("Number of clusters", list(range(2, 9)), index=1)
     if st.button("Explore structure", type="primary"):
         for key in ["exploration_result", "exploration_plots"]:
             st.session_state.pop(key, None)

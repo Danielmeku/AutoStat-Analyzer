@@ -10,7 +10,7 @@ def ask_assistant(provider, question, context):
 def insight_record(provider, provider_name, context):
     response = ask_assistant(provider, "Explain the important findings, assumptions, limitations and next analytical steps in the supplied evidence.", context)
     if not response['evidence_ids']:
-        raise ValueError('The assistant did not cite computed evidence for its insights. Try again or use the offline guide.')
+        raise ValueError('The assistant did not cite computed evidence for its insights. Try again.')
     selected = {card['id'] for card in context['evidence']}
     return {"provider": provider_name, "commentary": response['answer'],
             "evidence": [card for card in context['evidence'] if card['id'] in response['evidence_ids'] and card['id'] in selected],

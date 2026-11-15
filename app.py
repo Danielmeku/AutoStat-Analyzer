@@ -30,7 +30,7 @@ with st.sidebar:
     digits = st.selectbox("Significant figures", [2, 3], index=1, key="significant_figures")
 
     st.divider()
-    step = st.radio("Analysis workflow", ["Data review", "Explore", "Statistical tests", "Regression", "Model comparison", "Classification", "PCA & clusters", "Assistant & insights", "Export"])
+    step = st.radio("Analysis workflow", ["Data review", "Explore", "Statistical tests", "Regression", "Model comparison", "Classification", "PCA & clusters", "Export"])
     with st.popover("Analysis guide"):
         st.write("Review data quality and study design, then explore distributions and relationships. Choose a test for your design or specify a regression model. Inspect residuals, collinearity and influence before considering remedies. Use held-out model comparisons for prediction; export the analyses you have completed.")
     st.divider()
@@ -43,12 +43,14 @@ with st.sidebar:
 
 if source == "Upload CSV" and uploaded is None:
     st.info("Choose a CSV in the sidebar, or switch to the demo dataset to explore the workspace.")
+    render_assistant(None, {}, "no-data", digits)
     st.stop()
 try:
     raw = uploaded.getvalue() if uploaded is not None else b"demo-v1"
     original = load_csv(raw, delimiter) if uploaded is not None else demo_data()
 except ValueError as exc:
     st.error(str(exc))
+    render_assistant(None, {}, "no-data", digits)
     st.stop()
 name = uploaded.name if uploaded is not None else "Demo · regional sales (synthetic)"
 fingerprint = hashlib.sha256(raw + delimiter.encode()).hexdigest()
@@ -100,18 +102,21 @@ if step == "Data review":
     if quality["constant_columns"]:
         st.warning("Constant or empty columns: " + ", ".join(quality["constant_columns"]))
     st.markdown("#### Prepare a working copy")
-    duplicates = st.checkbox("Remove duplicate rows")
-    missing = st.checkbox("Drop rows containing any missing value")
+    options = st.columns(2)
+    duplicates = options[0].checkbox("Remove duplicate rows")
+    missing = options[1].checkbox("Drop rows containing any missing value")
+    proposed = None
     try:
         proposed = clean_data(original, duplicates, missing)
         st.write(f"Proposed result: {len(proposed):,} rows ({len(original) - len(proposed):,} removed).")
-        if st.button("Apply cleaning", type="primary"):
-            st.session_state["active"] = proposed
-            st.session_state["preparation"] = f"Working copy · remove duplicates: {duplicates} · drop incomplete rows: {missing}"
-            st.rerun()
     except ValueError as exc:
         st.warning(str(exc))
-    if st.button("Restore original data"):
+    actions = st.columns(2)
+    if actions[0].button("Apply cleaning", type="primary", disabled=proposed is None, width="stretch"):
+        st.session_state["active"] = proposed
+        st.session_state["preparation"] = f"Working copy · remove duplicates: {duplicates} · drop incomplete rows: {missing}"
+        st.rerun()
+    if actions[1].button("Restore original data", width="stretch"):
         st.session_state["active"] = original.copy()
         st.session_state["preparation"] = "Original data — no cleaning applied"
         st.rerun()
@@ -131,12 +136,13 @@ if step == "Explore":
         st.markdown("#### Descriptive statistics")
         st.dataframe(display_table(numeric_summary(frame), digits), width="stretch")
         if len(numbers) >= 2:
-            x = st.selectbox("Horizontal axis", numbers)
-            y = st.selectbox("Vertical axis", numbers, index=1)
+            controls = st.columns(3)
+            x = controls[0].selectbox("Horizontal axis", numbers)
+            y = controls[1].selectbox("Vertical axis", numbers, index=1)
+            method = controls[2].radio("Correlation method", ["pearson", "spearman"], horizontal=True)
             relationship, correlation = st.columns(2)
             with relationship:
                 plot_chart(px.scatter(chart_data, x=x, y=y, opacity=0.75, title="Variable relationship", color_discrete_sequence=["#24D9ED"]), width="stretch")
-            method = st.radio("Correlation method", ["pearson", "spearman"], horizontal=True)
             matrix = correlation_matrix(frame, method)
             with correlation:
                 plot_chart(px.imshow(matrix, zmin=-1, zmax=1, color_continuous_scale=["#22D3EE", "#171B35", "#A78BFA"], title=f"{method.title()} correlation"), width="stretch")
@@ -168,10 +174,6 @@ if step == "Classification":
 if step == "PCA & clusters":
     render_structure(frame)
 
-if step == "Assistant & insights":
-    calculated = {key: st.session_state[key] for key in ["test_result", "regression_result", "comparison_result", "classification_result", "exploration_result"] if key in st.session_state}
-    render_assistant(frame, calculated, analysis_fingerprint, digits)
-
 if step == "Export":
     st.subheader("Take your analysis with you")
     if st.button("Generate PDF reports", type="primary"):
@@ -184,11 +186,18 @@ if step == "Export":
         st.session_state["pdf_signature"] = report_signature
     pdfs = st.session_state.get("pdf_reports", {})
     if pdfs:
-        st.download_button("Download executive PDF", pdfs["executive.pdf"], "autostat-executive.pdf", "application/pdf")
-        st.download_button("Download detailed PDF", pdfs["detailed.pdf"], "autostat-detailed.pdf", "application/pdf")
-    st.download_button("Download analysis bundle", analysis_bundle(frame, name, analyses, pdfs), "autostat-analysis.zip", "application/zip")
-    st.download_button("Download summary", executive_report(frame, name), "autostat-summary.md", "text/markdown")
-    st.download_button("Download active dataset", frame.to_csv(index=False).encode("utf-8"), "autostat-working-copy.csv", "text/csv")
+        pdf_actions = st.columns(2)
+        pdf_actions[0].download_button("Download executive PDF", pdfs["executive.pdf"], "autostat-executive.pdf", "application/pdf")
+        pdf_actions[1].download_button("Download detailed PDF", pdfs["detailed.pdf"], "autostat-detailed.pdf", "application/pdf")
+    downloads = st.columns(3)
+    downloads[0].download_button("Download analysis bundle", analysis_bundle(frame, name, analyses, pdfs), "autostat-analysis.zip", "application/zip")
+    downloads[1].download_button("Download summary", executive_report(frame, name), "autostat-summary.md", "text/markdown")
+    downloads[2].download_button("Download active dataset", frame.to_csv(index=False).encode("utf-8"), "autostat-working-copy.csv", "text/csv")
+
+# Chat is available on every page and uses the latest completed analysis.
+invalidate_commentary()
+calculated = {key: st.session_state[key] for key in ["test_result", "regression_result", "comparison_result", "classification_result", "exploration_result"] if key in st.session_state}
+render_assistant(frame, calculated, analysis_fingerprint, digits)
 
 # A calculation on another page can change report contents during this run.
 invalidate_commentary()

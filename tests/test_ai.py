@@ -5,7 +5,6 @@ import pytest
 import requests
 from ai.context_builder import build_context
 from ai.chatbot import ask_assistant, insight_record
-from ai.providers.offline_provider import OfflineProvider
 from ai.providers.gemini_provider import GeminiProvider
 from ai.response_validator import validate_response
 from modules.data_loader import demo_data
@@ -27,19 +26,15 @@ def test_context_excludes_raw_values_predictions_and_unapproved_state():
     assert len(ctx['evidence']) == 2
 
 
-def test_offline_guide_and_grounded_insights():
-    provider, ctx = OfflineProvider(), context()
+def test_grounded_insight_records(evidence_provider):
+    provider, ctx = evidence_provider, context()
     answer = ask_assistant(provider, 'Explain the p-value', ctx)
     assert 'p-value' in answer['answer']
     assert not re.search(r'\d', answer['answer'])
     assert all(card_id in {c['id'] for c in ctx['evidence']} for card_id in answer['evidence_ids'])
-    saved = insight_record(provider, 'Offline guide', ctx)
-    assert saved['provider'] == 'Offline guide'
+    saved = insight_record(provider, 'Gemini', ctx)
+    assert saved['provider'] == 'Gemini'
     assert saved['evidence']
-    empty = build_context(demo_data(), {})
-    answer = ask_assistant(provider, 'Explain regression', empty)
-    assert 'No completed analysis' in answer['answer']
-    assert answer['evidence_ids'] == []
 
 
 @pytest.mark.parametrize('response', [
